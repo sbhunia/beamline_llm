@@ -4,6 +4,8 @@ from langchain_community.document_loaders import TextLoader
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 
+# Provides the appropriate splitter based on the length of the document
+#   This is to ensure that the document is split into chunks that are not too large
 def get_dynamic_splitter(doc_length: int) -> RecursiveCharacterTextSplitter:
     if doc_length <= 1000:
         return RecursiveCharacterTextSplitter(chunk_size=1000, chunk_overlap=100)
@@ -16,39 +18,40 @@ def get_dynamic_splitter(doc_length: int) -> RecursiveCharacterTextSplitter:
 
 def load_docs(docs_dir: str) -> list:
     docs = []
-    failed = []
+    failed = []  # Keep track of failed files to print for debugging later
     markdown_files = glob.glob(f"{docs_dir}/**/*.md", recursive=True)
     print(f"Found {len(markdown_files)} markdown files", end="\n[")
 
     for file_path in markdown_files:
-        base_name = os.path.basename(file_path).lower()
         try:
             # Try UTF-8 encoding first
             loader = TextLoader(file_path, encoding="utf-8")
             file_docs = loader.load()
 
             docs.extend(file_docs)
-            print(".", end="")
+            print(".", end="")  # Print '.' for successful load
         except Exception as e:
             try:
+                # Try Latin-1 if UTF-8 fails
                 loader = TextLoader(file_path, encoding="latin-1") 
                 file_docs = loader.load()
 
                 docs.extend(file_docs)
-                print(":", end="")
+                print(":", end="")  # Print ':' for Latin-1 successful load
             except Exception as e2:
-                print("e", end="")
-                failed.append(file_path)
+                print("e", end="")  # Print 'e' for failed load
+                failed.append(file_path)  # Add file name to failed list for debugging later
     print("]")
 
 
-    if failed:
+    if failed:  # If failed files exist, print them for debugging
         print(f"\nFailed to load {len(failed)} files:\n{failed}")
 
 
     print(f"\nSuccessfully loaded {len(docs)} documents total")
 
 
+    # Get split documents with dynamic splitting
     splits = []
     for doc in docs:
         splitter = get_dynamic_splitter(len(doc.page_content))
