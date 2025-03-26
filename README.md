@@ -4,10 +4,14 @@ This project is a web application that (currently, subject to change) utilizes C
 
 ## TODO List
 
-[ ] Fix bug where Chainlit text box pastes double (`app.py`?)
 [ ] Allow OpenAI implementation to use prompt template (`models/openai/query.py`)
+[X] Fix bug where 'models' module not found (`utils/query_model.py`)
+
 [X] Print links to source files used with nice formatting (`app.py`)
-[X] Fix bug where 'models' module not found (`utils/uery_model.py`)
+[ ] Fix bug where Chainlit text box pastes double (`app.py`?)
+[ ] Change intro message depending on what model is default (`app.py`)
+[ ] Add a list of models available (`utils/config.py`)
+
 
 
 ## Project Structure

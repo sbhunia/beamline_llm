@@ -21,7 +21,7 @@ splits = load_docs(MARKDOWN_DOCS_DIR)
 
 @cl.on_chat_start
 async def start():
-    await Message("Welcome! The default model is OpenAI's GPT-4").send()
+    await Message("Welcome! The default model is Meta's OLlama").send()
 
     selected = await cl.ChatSettings(
         [
@@ -60,6 +60,9 @@ async def main(message):
         response += f"[{doc}]({url})"
         if i != len(doc_sources) - 1:
             response += ", "
+
+    if "</think>" in response:
+        response = response.split("</think>")[-1]
 
     # Send the response back to the user and wait for the next message
     await cl.Message(content=response).send()
