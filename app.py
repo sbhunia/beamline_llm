@@ -5,7 +5,7 @@ import sys
 # Custom modules
 from utils.preprocess import load_docs
 from utils.query_model import ask_question
-from utils.config import MARKDOWN_DOCS_DIR, DEFAULT_MODEL
+from utils.config import MARKDOWN_DOCS_DIR, DEFAULT_MODEL, MODEL_OPTIONS, MODEL_NAMES
 
 # From Chainlit
 import chainlit as cl
@@ -21,11 +21,11 @@ splits = load_docs(MARKDOWN_DOCS_DIR)
 
 @cl.on_chat_start
 async def start():
-    await Message("Welcome! The default model is Meta's OLlama").send()
+    await Message(f"Welcome! The default model is {MODEL_NAMES[DEFAULT_MODEL]}").send()
 
     selected = await cl.ChatSettings(
         [
-            Select(id="model", label="Model", values=["openai", "llama"], initial_index=0)
+            Select(id="model", label="Model", values=MODEL_OPTIONS, initial_index=0)
         ]
     ).send()
 
@@ -35,7 +35,6 @@ async def start():
 async def setup_agent(settings):
     cl.user_session.set("model", settings["model"])
     print("on_settings_update", settings)
-    print("user_model:", cl.user_session.get("model"))
 
 
 @cl.on_message
@@ -61,6 +60,7 @@ async def main(message):
         if i != len(doc_sources) - 1:
             response += ", "
 
+    # To handle OLlama's "think" output
     if "</think>" in response:
         response = response.split("</think>")[-1]
 
