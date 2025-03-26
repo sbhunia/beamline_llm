@@ -1,2 +1,5 @@
 .env
 faiss_index/
+.chainlit/
+.files/
+**/__pycache__

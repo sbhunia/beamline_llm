@@ -1,51 +1,68 @@
-### START IMPORTS ###
-# OS Imports
-from dotenv import load_dotenv, find_dotenv
+### IMPORTS ###
 import os
+import sys
 
-# Workspace Imports
+# Custom modules
 from utils.preprocess import load_docs
 from utils.query_model import ask_question
+from utils.config import MARKDOWN_DOCS_DIR, DEFAULT_MODEL
 
+# From Chainlit
+import chainlit as cl
+from chainlit.message import Message
+from chainlit.input_widget  import Select
 ### END IMPORTS ###
 
 
-### LOAD ENVIRONMENT VARIABLES ###
-load_dotenv(find_dotenv())
-
-### LOAD DIRECTORY FOR MARKDOWN FILES ###
-docs_dir = os.getenv("MARKDOWN_DOCS_DIR")
-### END ###
+sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
 # Call utils.preprocess.load_docs
-#   This loads in the MD documents and chunks them to prepare for embedding
-splits = load_docs(docs_dir)
-print(f"Received {len(splits)} text chunks for embedding")
+splits = load_docs(MARKDOWN_DOCS_DIR)
+
+@cl.on_chat_start
+async def start():
+    await Message("Welcome! The default model is OpenAI's GPT-4").send()
+
+    selected = await cl.ChatSettings(
+        [
+            Select(id="model", label="Model", values=["openai", "llama"], initial_index=0)
+        ]
+    ).send()
+
+    cl.user_session.set("model", DEFAULT_MODEL)
+
+@cl.on_settings_update
+async def setup_agent(settings):
+    cl.user_session.set("model", settings["model"])
+    print("on_settings_update", settings)
+    print("user_model:", cl.user_session.get("model"))
 
 
-if __name__ == "__main__":
-    ### LOAD OPENAI KEY ###
-    openai_api_key = os.getenv("OPENAI_API_KEY")
-    ### END ###
+@cl.on_message
+async def main(message):
+    # Specify the question from the user
+    Q = message.content
 
-    # Specify sample question
-    Q = "How to change temperature from 300K to 13K?"
+    # Get user selected model from UI
+    M = cl.user_session.get("model")
 
     # Call utils.query_model.ask_question
     #   This performs all of the fancy LLM stuff
-    # NOTE: Specify model= as 'openai' or 'llama' depending on which model you want to use
-    A, source_documents = ask_question(splits=splits, question=Q, model="llama")
+    # NOTE: Specify model= as 'openai' or 'llama'
+    A, source_documents = ask_question(splits=splits, question=Q, model=M)
 
-    # View for debugging
-    # NOTE: The below commented out code has excessive output IMO
-    # for i, doc in enumerate(source_documents):
-    #     print(f"Document {i} content:\n{doc.page_content}\n")
-    #     print(f"Source: {doc.metadata}\n")
-    
+    # Prepare the response
     doc_sources = [doc.metadata['source'].split('/')[-1] for doc in source_documents]
-    print(f"\n\nA total of {len(source_documents)} were retrieved for the response.")
-    print(f"These documents were:\n{doc_sources}")
+    response = f"{A}\n\nSource Documents: "
 
-    # Print Question and Answer
-    print(f"\n\nQuestion: {Q}")
-    print(f"Answer: {A}")
+    for i, doc in enumerate(doc_sources):
+        url = f"https://github.com/suchismitasarker/CHESS-ID4B-QM2/blob/main/docs/{doc}"
+        response += f"[{doc}]({url})"
+        if i != len(doc_sources) - 1:
+            response += ", "
+
+    # Send the response back to the user and wait for the next message
+    await cl.Message(content=response).send()
+
+if __name__ == "__main__":
+    cl.run()

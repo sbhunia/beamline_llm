@@ -63,8 +63,6 @@ def load_docs(docs_dir: str) -> list:
     return splits
 
 if __name__ == "__main__":
-    from dotenv import load_dotenv, find_dotenv
-    load_dotenv(find_dotenv())
-    docs_dir = os.getenv("MARKDOWN_DOCS_DIR")
-    splits = load_docs(docs_dir)
+    from utils.config import MARKDOWN_DOCS_DIR
+    splits = load_docs(MARKDOWN_DOCS_DIR)
     print(f"Received {len(splits)} text chunks for embedding")
