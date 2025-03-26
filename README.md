@@ -10,7 +10,7 @@ This project is a web application that (currently, subject to change) utilizes C
 [X] Print links to source files used with nice formatting (`app.py`)
 [ ] Fix bug where Chainlit text box pastes double (`app.py`?)
 [ ] Change intro message depending on what model is default (`app.py`)
-[X] Add a list of models available (`utils/config.py`)
+[ ] Add a list of models available (`utils/config.py`)
 
 
 
