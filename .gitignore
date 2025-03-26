@@ -1,4 +1,4 @@
 .env
 faiss_index/
 .files/
-**/__pycache__
+**/__pycache__/
