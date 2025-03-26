@@ -25,13 +25,16 @@ beamline-llm/
 │  └─ 📁openai/
 │     └─ 📄query.py
 ├─ 📁utils/
+│  ├─ 📄config.py
 │  ├─ 📄preprocess.py
 │  ├─ 📄query_model.py
 │  └─ 📄resources.py
 ├─ 📃.env
 ├─ 📜.gitignore
 ├─ 📄app.py
-└─ 📜README.md
+├─ 📜chainlit.md
+├─ 📜README.md
+└─ 📜requirements.txt
 ```
 
 ## Setup Instructions
