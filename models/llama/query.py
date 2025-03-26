@@ -7,6 +7,7 @@ from langchain_core.output_parsers import StrOutputParser
 # Import create_vectorstore and the ANSWER_TEMPLATE string 
 #   from the utils.resources module
 from utils.resources import create_vectorstore, ANSWER_TEMPLATE
+from utils.config import TEMPERATURE
 
 
 # Create the embeddings using the splits, create the 
@@ -26,7 +27,7 @@ def create_embedding(splits: list) -> FAISS:
 def create_model():
     rag_prompt = ChatPromptTemplate.from_template(ANSWER_TEMPLATE)
     print("\nCreating model...")
-    llm = ChatOllama(model="deepseek-r1:1.5b", temperature=0.1)  # Deepseek(?) model used 
+    llm = ChatOllama(model="deepseek-r1:1.5b", temperature=TEMPERATURE)  # Deepseek(?) model used 
     print("Model created successfully")
 
     return llm, rag_prompt

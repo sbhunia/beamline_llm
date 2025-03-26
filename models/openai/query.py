@@ -6,6 +6,7 @@ from langchain.chains import ConversationalRetrievalChain
 # Import create_vectorstore and the ANSWER_TEMPLATE string 
 #   from the utils.resources module
 from utils.resources import create_vectorstore, ANSWER_TEMPLATE
+from utils.config import TEMPERATURE
 
 
 # Create the embeddings using the splits, create the 
@@ -26,7 +27,7 @@ def create_model():
     # TODO: 'rag_prompt' is currently not used!!! implement this !!!
     rag_prompt = ChatPromptTemplate.from_template(ANSWER_TEMPLATE)
     print("\nCreating model...")
-    llm = ChatOpenAI(model="gpt-4", temperature=0.1)  # GPT-4 model used
+    llm = ChatOpenAI(model="gpt-4", temperature=TEMPERATURE)  # GPT-4 model used
     print("Model created successfully")
 
     return llm, rag_prompt

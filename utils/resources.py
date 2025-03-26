@@ -26,6 +26,7 @@ Respond using a numbered list of steps, as shown in the original instructions.
 Use Markdown for bold commands, italics for descriptions, and include warnings when appropriate.
 """
 
+
 def create_vectorstore(splits, embeddings):
     print("Creating vector store...")
     vectorstore = FAISS.from_documents(splits, embeddings)
