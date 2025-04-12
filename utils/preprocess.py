@@ -1,134 +1,84 @@
 import os
 import glob
-from langchain_community.document_loaders import TextLoader, UnstructuredMarkdownLoader
+import logging
+from typing import List
 from langchain.text_splitter import RecursiveCharacterTextSplitter, MarkdownHeaderTextSplitter
+from langchain.schema import Document
 
-def get_improved_splitter(doc_content: str, file_path: str) -> RecursiveCharacterTextSplitter:
-    """
-    Create a splitter optimized for technical documentation with numbered steps.
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+PROCEDURAL_MARKERS = [
+    "* Step", "FOURC >", "Procedure:", "Step 1", "1.", "2.", "Command:",
+    "Verification:", "Sample:", "!!! danger", "<b><i><u>"
+]
+ENCODINGS_TO_TRY = ['utf-8', 'latin-1', 'utf-16', 'iso-8859-1']
+
+def get_optimized_splitter(content: str) -> RecursiveCharacterTextSplitter:
+    """Create context-aware text splitter based on document content"""
+    is_procedural = any(marker in content for marker in PROCEDURAL_MARKERS)
     
-    Args:
-        doc_content: The content of the document to split
-        file_path: The path to the document file
-    
-    Returns:
-        A text splitter optimized for the document's content type
-    """
-    # Check if document contains procedural steps (likely to have asterisks and numbers)
-    contains_steps = any(marker in doc_content for marker in ["* Step", "1.", "2.", "Step 1", "FOURC >"])
-    
-    if contains_steps:
-        # For procedural documents, use larger chunks with more overlap
-        # to ensure complete procedures stay together
-        return RecursiveCharacterTextSplitter(
-            chunk_size=8000,                # Large chunk size to keep procedures intact
-            chunk_overlap=1000,             # Significant overlap for context
-            separators=["\n\n\n", "\n\n", "\n", " ", ""],  # Split on larger paragraph breaks first
-            keep_separator=True,
-            add_start_index=True,
-        )
-    else:
-        # For reference documents, use moderate chunking
-        return RecursiveCharacterTextSplitter(
-            chunk_size=4000, 
-            chunk_overlap=400,
-            separators=["\n\n\n", "\n\n", "\n", " ", ""],
-            keep_separator=True,
-            add_start_index=True,
-        )
+    return RecursiveCharacterTextSplitter(
+        chunk_size=6000 if is_procedural else 3000,
+        chunk_overlap=800 if is_procedural else 500,
+        separators=["\n\n## ", "\n\n### ", "\n\n#### ", "\n\n", "\n", " "],
+        keep_separator=True,
+        add_start_index=True,
+        is_separator_regex=False
+    )
 
-def load_docs(docs_dir: str) -> list:
-    """
-    Load and split documents with improved processing for technical documentation.
-    
-    Args:
-        docs_dir: Directory containing markdown documentation
-        
-    Returns:
-        List of document chunks optimized for retrieval
-    """
-    docs = []
-    failed = []
-    markdown_files = glob.glob(os.path.join(docs_dir, '**', '*.md'), recursive=True)
-    print(f"Found {len(markdown_files)} markdown files", end="\n[")
-
-    for file_path in markdown_files:
-        try:
-            # Try UnstructuredMarkdownLoader first which preserves markdown structure
-            try:
-                loader = UnstructuredMarkdownLoader(file_path)
-                file_docs = loader.load()
-                docs.extend(file_docs)
-                print("u", end="")  # 'u' for unstructured loader
-            except:
-                # Fall back to TextLoader if UnstructuredMarkdownLoader fails
-                loader = TextLoader(file_path, encoding="utf-8")
-                file_docs = loader.load()
-                docs.extend(file_docs)
-                print(".", end="")
-        except Exception:
-            try:
-                # Try with different encoding
-                loader = TextLoader(file_path, encoding="latin-1")
-                file_docs = loader.load()
-                docs.extend(file_docs)
-                print(":", end="")
-            except Exception:
-                print("e", end="")
-                failed.append(file_path)
-    print("]")
-
-    if failed:
-        print(f"\nFailed to load {len(failed)} files:\n{failed}")
-
-    print(f"\nSuccessfully loaded {len(docs)} documents total")
-
-    # First use header-based splitting to preserve document structure
+def load_documents(docs_dir: str) -> List[Document]:
+    """Load and process technical documentation with enhanced metadata handling"""
+    documents = []
     header_splitter = MarkdownHeaderTextSplitter(
         headers_to_split_on=[
-            ("#", "header1"),
-            ("##", "header2"),
-            ("###", "header3"),
-            ("####", "header4"),
+            ("#", "Header 1"), ("##", "Header 2"), 
+            ("###", "Header 3"), ("####", "Header 4")
         ]
     )
-    
-    splits = []
-    for doc in docs:
-        # Read document content to determine appropriate splitter
-        content = doc.page_content
-        file_path = doc.metadata.get('source', '')
-        
-        # Try header-based splitting first
+
+    for file_path in glob.glob(os.path.join(docs_dir, '**', '*.md'), recursive=True):
         try:
-            header_splits = header_splitter.split_text(content)
-            # For each header section, apply content-aware splitting
-            for header_doc in header_splits:
-                splitter = get_improved_splitter(header_doc.page_content, file_path)
-                # Preserve header information in metadata
-                sub_splits = splitter.split_documents([header_doc])
+            # Try multiple encodings
+            content = None
+            for encoding in ENCODINGS_TO_TRY:
+                try:
+                    with open(file_path, 'r', encoding=encoding) as f:
+                        content = f.read()
+                    break
+                except UnicodeDecodeError:
+                    continue
+
+            if not content:
+                logger.error(f"Failed to load {file_path} with all encodings")
+                continue
+
+            # Split by markdown headers first
+            header_chunks = header_splitter.split_text(content)
+            
+            for chunk in header_chunks:
+                # Determine content type
+                is_procedure = any(marker in chunk.page_content for marker in PROCEDURAL_MARKERS)
                 
-                # Transfer header metadata to all sub_splits
-                for split in sub_splits:
-                    # Add header info to metadata
-                    for key, value in header_doc.metadata.items():
-                        if key.startswith('header'):
-                            split.metadata[key] = value
-                    # Add source file info
-                    split.metadata['source'] = file_path
+                # Split using optimized splitter
+                splitter = get_optimized_splitter(chunk.page_content)
+                sub_chunks = splitter.split_documents([chunk])
                 
-                splits.extend(sub_splits)
-        except:
-            # If header splitting fails, use content-aware splitting directly
-            splitter = get_improved_splitter(content, file_path)
-            doc_splits = splitter.split_documents([doc])
-            splits.extend(doc_splits)
+                # Add metadata
+                for sub_chunk in sub_chunks:
+                    sub_chunk.metadata.update({
+                        "source": os.path.basename(file_path),
+                        "file_path": file_path,
+                        "content_type": "procedure" if is_procedure else "reference",
+                        **chunk.metadata
+                    })
+                    
+                documents.extend(sub_chunks)
 
-    print(f"Created {len(splits)} text chunks optimized for accurate retrieval")
+        except Exception as e:
+            logger.error(f"Failed to process {file_path}: {str(e)}")
+            continue
 
-    return splits
-
-if __name__ == "__main__":
-    from utils.config import MARKDOWN_DOCS_DIR
-    splits = load_docs(MARKDOWN_DOCS_DIR)
-    print(f"Received {len(splits)} text chunks for embedding")
+    logger.info(f"Processed {len(documents)} document chunks")
+    return documents  # Ensure this return statement exists
