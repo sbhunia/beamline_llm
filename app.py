@@ -1,197 +1,100 @@
-### IMPORTS ###
 import os
 import sys
 import time
 import re
-from typing import List, Dict, Any, Tuple
-
-# Custom modules
-from utils.preprocess import load_docs
+from utils.preprocess import load_documents as load_docs
 from utils.query_model import ask_question
-from utils.config import MARKDOWN_DOCS_DIR, DEFAULT_MODEL, MODEL_OPTIONS, MODEL_NAMES
-
-# From Chainlit
-import chainlit as cl
-from chainlit.message import Message
-from chainlit.input_widget import Select, Slider, Switch
-from chainlit.element import Element
-### END IMPORTS ###
-
+from utils.config import MARKDOWN_DOCS_DIR
 
 sys.path.append(os.path.abspath(os.path.dirname(__file__)))
 
-# Load documents at startup
-print("🔄 Loading and processing documents...")
-splits = load_docs(MARKDOWN_DOCS_DIR)
-print(f"✅ Loaded {len(splits)} document chunks")
-
-def format_source_content(source_docs: List[Any]) -> str:
-    """Format source document content for debug view."""
-    if not source_docs:
-        return "No source documents retrieved."
-    
-    formatted = ""
-    for i, doc in enumerate(source_docs):
-        source = doc.metadata.get('source', 'unknown').split('/')[-1]
-        headers = []
-        for key in doc.metadata:
-            if key.startswith('header') and doc.metadata[key]:
-                headers.append(f"{key}: {doc.metadata[key]}")
-        
-        header_info = " | ".join(headers) if headers else "No header metadata"
-        
-        formatted += f"📄 **Source {i+1}**: {source}\n"
-        formatted += f"**Context**: {header_info}\n"
-        formatted += f"**Content**:\n```markdown\n{doc.page_content[:400]}...\n```\n\n"
-    
-    return formatted
-
-@cl.on_chat_start
-async def start():
-    # Welcome message
-    welcome_msg = f"""# 🧪 CHESS ID4B-QM2 Beamline Assistant
-
-Welcome! This assistant helps you with beamline operation procedures by retrieving information from technical documentation.
-
-- Ask about step-by-step procedures
-- Get command syntax for the beamline interface
-- Find temperature control information
-
-Default model: **{MODEL_NAMES[DEFAULT_MODEL]}**
-"""
-    await Message(content=welcome_msg).send()
-
-    # Initialize settings
-    selected = await cl.ChatSettings(
-        [
-            Select(
-                id="model", 
-                label="LLM Model", 
-                values=MODEL_OPTIONS, 
-                initial_index=0
-            ),
-            Slider(
-                id="temperature",
-                label="Temperature",
-                initial=0.1,
-                min=0,
-                max=1,
-                step=0.1,
-                tooltip="Lower values = more deterministic responses"
-            ),
-            Slider(
-                id="k_docs",
-                label="Retrieved Documents",
-                initial=8,
-                min=3,
-                max=15,
-                step=1,
-                tooltip="Number of documents to retrieve"
-            ),
-            Switch(
-                id="show_debug",
-                label="Show Debug Info",
-                initial=False
-            )
-        ]
-    ).send()
-
-    cl.user_session.set("model", DEFAULT_MODEL)
-    cl.user_session.set("temperature", 0.1)
-    cl.user_session.set("k_docs", 8)
-    cl.user_session.set("show_debug", False)
-
-@cl.on_settings_update
-async def setup_agent(settings):
-    cl.user_session.set("model", settings["model"])
-    cl.user_session.set("temperature", float(settings["temperature"]))
-    cl.user_session.set("k_docs", int(settings["k_docs"]))
-    cl.user_session.set("show_debug", settings["show_debug"])
-    print(f"🔄 Settings updated: {settings}")
-
-
-@cl.on_message
-async def main(message):
+def validate_documents():
+    """Ensure documents are loaded properly before starting"""
+    print("\U0001F504 Loading and processing documents...")
     try:
-        # Start processing indicator
-        processing_msg = cl.Message(content="🔄 Processing your request...")
-        await processing_msg.send()
-        
-        start_time = time.time()
-        
-        print(f"▶️ User input: {message.content}")
-        
-        # Get session settings
-        question = message.content
-        model = cl.user_session.get("model")
-        temperature = cl.user_session.get("temperature")
-        k_docs = cl.user_session.get("k_docs")
-        show_debug = cl.user_session.get("show_debug")
-        
-        print(f"🤖 Using model: {model}, temp: {temperature}, k: {k_docs}")
-
-        # Call the query function with parameters
-        answer, source_documents = ask_question(
-            splits=splits, 
-            question=question, 
-            model=model,
-            temperature=temperature,
-            k=k_docs
-        )
-
-        # Process response
-        if "</think>" in answer:
-            thinking = re.search(r"<think>(.*?)</think>", answer, re.DOTALL)
-            thinking_content = thinking.group(1).strip() if thinking else ""
-            answer = answer.split("</think>")[-1].strip()
-        else:
-            thinking_content = ""
-
-        print(f"✅ Response received in {time.time() - start_time:.2f}s")
-        
-        # Prepare source document links
-        doc_sources = []
-        seen_sources = set()
-        for doc in source_documents:
-            source = doc.metadata.get('source', '').split('/')[-1]
-            if source and source not in seen_sources:
-                doc_sources.append(source)
-                seen_sources.add(source)
-
-        # Format response
-        response = f"{answer}\n\n"
-        
-        # Add source documents
-        if doc_sources:
-            response += f"📄 **Source Documents:**\n"
-            for doc in doc_sources:
-                url = f"https://github.com/suchismitasarker/CHESS-ID4B-QM2/blob/main/docs/{doc}"
-                response += f"- [{doc}]({url})\n"
-
-        # Update the processing message with the final response
-        await processing_msg.update(content=response)
-        
-        # Add debug information if enabled
-        if show_debug:
-            debug_response = f"### 🔍 Debug Information\n\n"
-            debug_response += f"**Query Time**: {time.time() - start_time:.2f}s\n"
-            debug_response += f"**Model**: {model}\n"
-            debug_response += f"**Temperature**: {temperature}\n"
-            debug_response += f"**Retrieved Documents**: {len(source_documents)}/{k_docs}\n\n"
-            
-            if thinking_content:
-                debug_response += f"**LLM Thinking Process**:\n```\n{thinking_content}\n```\n\n"
-            
-            debug_response += f"**Retrieved Source Content**:\n{format_source_content(source_documents)}"
-            
-            await cl.Message(content=debug_response).send()
-
+        splits = load_docs(MARKDOWN_DOCS_DIR)
+        if not splits:
+            raise ValueError("No documents found in specified directory")
+        if len(splits) < 10:  # Minimum expected chunks
+            raise ValueError(f"Only {len(splits)} chunks found - check document processing")
+        print(f"✅ Loaded {len(splits)} document chunks")
+        return splits
     except Exception as e:
-        import traceback
-        error_details = traceback.format_exc()
-        print(f"❌ ERROR: {str(e)}\n{error_details}")
-        await cl.Message(content=f"⚠️ Error: {str(e)}").send()
+        print(f"\n❌ CRITICAL ERROR: {str(e)}")
+        print("Possible fixes:")
+        print("1. Verify MARKDOWN_DOCS_DIR in config.py points to docs/")
+        print("2. Check file permissions for markdown files")
+        print("3. Run 'python -m utils.preprocess' to test loading")
+        sys.exit(1)
 
+# Initialize document store with validation
+splits = validate_documents()
+
+def format_source_documents(docs):
+    """Format source documents with deduplication and validation"""
+    output = []
+    seen = set()
+    for doc in docs:
+        if not hasattr(doc, 'metadata'):
+            continue
+        source = doc.metadata.get("source", "unknown")
+        if isinstance(source, str) and source not in seen:
+            seen.add(source)
+            output.append(f"- {os.path.basename(source)}")
+    return "\n".join(output) if output else "No verified sources"
+
+def handle_response(answer: str) -> str:
+    """Sanitize and format LLM response"""
+    # Remove any XML/HTML tags
+    cleaned = re.sub(r'<[^>]+>', '', answer)
+    # Normalize FOURC command formatting
+    cleaned = re.sub(r'(FOURC\s*>\s*\S+)', r'* \1 *', cleaned)
+    return cleaned.strip()
+
+def main_loop():
+    print("\n🧪 CHESS ID4B-QM2 Terminal Assistant Ready!")
+    print("Type a question (or 'exit' to quit):\n")
+
+    while True:
+        try:
+            question = input("> ").strip()
+            if question.lower() in {"exit", "quit"}:
+                print("Goodbye!")
+                break
+
+            start_time = time.time()
+            print("\nProcessing your question...")
+
+            # Get response with error containment
+            try:
+                answer, source_docs = ask_question(
+                    splits=splits,
+                    question=question,
+                    model="tiny",
+                    temperature=0.1,
+                    k=8
+                )
+            except Exception as e:
+                answer = f"Query failed: {str(e)}"
+                source_docs = []
+
+            # Process and display results
+            print("\n✅ Answer:")
+            print(handle_response(answer))
+
+            if source_docs:
+                print("\n📄 Source Documents:")
+                print(format_source_documents(source_docs))
+
+            elapsed = time.time() - start_time
+            print(f"\n⏱️ Completed in {elapsed:.2f} seconds\n")
+
+        except KeyboardInterrupt:
+            print("\nOperation cancelled by user.")
+            break
+        except Exception as e:
+            print(f"\n⚠️ SYSTEM ERROR: {str(e)}")
+            print("Please report this to beamline staff")
 
 if __name__ == "__main__":
-    cl.run()
+    main_loop()
