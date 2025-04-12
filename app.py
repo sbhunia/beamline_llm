@@ -67,5 +67,5 @@ async def main(message):
     # Send the response back to the user and wait for the next message
     await cl.Message(content=response).send()
 
-if __name__ == "__main__":
-    cl.run()
+#if __name__ == "__main__":
+#    cl.run()
