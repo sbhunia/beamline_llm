@@ -70,7 +70,7 @@ def main_loop():
                 answer, source_docs = ask_question(
                     splits=splits,
                     question=question,
-                    model="tiny",
+                    model="gpt-4o",  # Change from "tiny" to "gpt-4o" or your preferred model
                     temperature=0.1,
                     k=8
                 )
@@ -95,6 +95,7 @@ def main_loop():
         except Exception as e:
             print(f"\n⚠️ SYSTEM ERROR: {str(e)}")
             print("Please report this to beamline staff")
+    
 
 if __name__ == "__main__":
     main_loop()
