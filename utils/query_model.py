@@ -11,10 +11,13 @@ from dotenv import load_dotenv
 # Load environment variables
 load_dotenv()
 
+# Path to FAISS index
+FAISS_INDEX_PATH = "faiss_index"
+
 def ask_question(
     splits: List[Document],
     question: str,
-    model: str = "gpt-4o",  # Default to GPT-4o
+    model: str = "gpt-4o",
     temperature: float = 0.1,
     k: int = 8
 ) -> Tuple[str, List[Document]]:
@@ -40,8 +43,16 @@ def ask_question(
     # Create embeddings using OpenAI
     embeddings = OpenAIEmbeddings()
     
-    # Create vector store from documents
-    vectorstore = FAISS.from_documents(splits, embeddings)
+    # Try to load existing FAISS index or create a new one
+    FAISS_INDEX_PATH = "faiss_index"
+    if os.path.exists(FAISS_INDEX_PATH):
+        print("Loading existing FAISS index...")
+        vectorstore = FAISS.load_local(FAISS_INDEX_PATH, embeddings, allow_dangerous_deserialization=True)
+    else:
+        print("Creating new FAISS index...")
+        vectorstore = FAISS.from_documents(splits, embeddings)
+        vectorstore.save_local(FAISS_INDEX_PATH)
+        print(f"FAISS index saved to {FAISS_INDEX_PATH}")
     
     # Create retriever
     retriever = vectorstore.as_retriever(search_kwargs={"k": k})
@@ -49,7 +60,7 @@ def ask_question(
     # Configure callbacks - optional for streaming output
     callback_manager = CallbackManager([StreamingStdOutCallbackHandler()])
     
-    # Initialize OpenAI model using ChatOpenAI instead of OpenAI
+    # Initialize OpenAI model
     llm = ChatOpenAI(
         model_name=model,
         temperature=temperature,
