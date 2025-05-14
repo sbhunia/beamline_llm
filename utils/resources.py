@@ -34,7 +34,7 @@ def create_vectorstore(splits, embeddings):
 
     retriever = vectorstore.as_retriever(
         search_type="mmr",
-        search_kwargs={"k": 5, "fetch_k": 12}
+        search_kwargs={"k": 5, "fetch_k": 12}  # Get top 5 results, fetch 12 for diversity
     )
 
     vectorstore.save_local("faiss_index")
