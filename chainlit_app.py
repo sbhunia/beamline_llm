@@ -1,304 +1,246 @@
 from __future__ import annotations
-
-import os, datetime as dt, re
+import os
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as _TOError
 import streamlit as st
-from scripts.router import route as route_query
+
+# Router import — handle either router.py or log_router.py
+try:
+    from scripts.router import route as route_query
+except Exception:
+    from scripts.log_router import route as route_query  # type: ignore
+
 from scripts.codegen_agent import run_codegen_ui
 from scripts.text_agent import answer as text_answer
 from scripts.log_utils import log_event
 
-# Timeout helper
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as _TOError
-def run_with_timeout(func, *args, timeout_s: int = 30, **kwargs):
+# ---------------- Timeout helper ----------------
+def run_with_timeout(func, *args, timeout_s: int = 45, **kwargs):
     with ThreadPoolExecutor(max_workers=1) as ex:
         fut = ex.submit(func, *args, **kwargs)
         try:
             return fut.result(timeout=timeout_s), None
-        except _TOError:
-            return None, "timeout"
+        except _TOError as e:
+            return None, f"timeout: {e}"
         except Exception as e:
             return None, f"error: {e}"
 
 # ---------------- UI config + styles ----------------
-st.set_page_config(page_title="QM2 Assistant", page_icon="🤖", layout="wide", initial_sidebar_state="expanded")
+st.set_page_config(page_title="QM2 Assistant", page_icon="🤖", layout="wide")
+
 st.markdown(
     """
 <style>
-.topbar { background:#b50f2b; height:52px; width:100%; position:fixed; top:0; left:0; right:0; z-index:9999;
-          display:flex; align-items:center; padding:0 18px; box-shadow:0 1px 0 rgba(0,0,0,0.08); }
-.topbar-title { color:#fff; font-weight:700; font-size:24px; letter-spacing:.2px; }
+.topbar { background:#b50f2b; height:52px; width:100%; position:fixed;
+          top:0; left:0; right:0; z-index:9999;
+          display:flex; align-items:center; padding:0 18px;
+          box-shadow:0 1px 0 rgba(0,0,0,0.08); }
+.topbar-title { color:#fff; font-weight:700; font-size:24px; }
 .topbar-logo { margin-left:auto; color:#fff; font-weight:800; font-size:28px; }
 .block-container { padding-top:80px; }
-section[data-testid="stSidebar"] { width:260px !important; }
-.plaque { background:#d5d1bf; display:inline-block; padding:12px 22px; border-radius:3px; font-weight:800; letter-spacing:.5px; color:#1a1a1a; }
-.result-card { background:#fff; border:1px solid #e5e5e5; border-radius:6px; padding:10px 12px; margin-bottom:8px; }
-code.path { background:#f7f7f7; padding:2px 6px; border-radius:4px; }
-.agent-badge { display:inline-block; padding:4px 8px; border-radius:6px; font-weight:700; font-size:12px; margin-bottom:8px; }
+.plaque { background:#d5d1bf; display:block; text-align:center;
+          padding:12px 22px; border-radius:3px; font-weight:800;
+          letter-spacing:.5px; color:#1a1a1a; margin-bottom:12px; }
+.helper { color:#6b7280; font-size:14px; text-align:center; margin:-4px 0 16px; }
+.agent-badge { display:inline-block; padding:4px 8px; border-radius:6px;
+               font-weight:700; font-size:12px; margin-bottom:8px; }
 .agent-code { background:#fff1f2; color:#9f1239; border:1px solid #fecdd3; }
 .agent-text { background:#eef2ff; color:#1e3a8a; border:1px solid #c7d2fe; }
-html, body, .block-container { font-size: 1.05rem; }
-code, pre { font-size: 0.95rem !important; }
+.warn { background:#fff7ed; border:1px solid #fed7aa; color:#9a3412;
+        padding:10px 12px; border-radius:6px; }
 </style>
 """,
     unsafe_allow_html=True,
 )
+
 st.markdown(
     """
 <div class="topbar">
-    <div class="topbar-title">User Interface (Front-end)</div>
-    <div class="topbar-logo">M</div>
+  <div class="topbar-title">QM2 Assistant</div>
+  <div class="topbar-logo">M</div>
 </div>
 """,
     unsafe_allow_html=True,
 )
+st.markdown("<div class='plaque'>QM2 ASSISTANT</div>", unsafe_allow_html=True)
+st.markdown(
+    "<div class='helper'>Ask me for SPEC macros or explanations. I'll route to the right agent. </div>",
+    unsafe_allow_html=True,
+)
 
 # ---------------- Session state ----------------
-if "view" not in st.session_state: st.session_state.view="home"
-if "messages" not in st.session_state: st.session_state.messages=[]
-if "history" not in st.session_state: st.session_state.history=[]
-if "last_generated_code" not in st.session_state: st.session_state.last_generated_code=""
-if "last_task" not in st.session_state: st.session_state.last_task=""
-if "debug_last" not in st.session_state: st.session_state.debug_last=None
-if "beamline_mode" not in st.session_state: st.session_state.beamline_mode=True  # ON = no website
-if "last_intent" not in st.session_state: st.session_state.last_intent=None
-if "last_topic" not in st.session_state: st.session_state.last_topic=None
+if "messages" not in st.session_state:
+    st.session_state.messages = []
+if "show_debug" not in st.session_state:
+    st.session_state.show_debug = False
 
 # ---------------- Sidebar ----------------
 with st.sidebar:
-    st.markdown("<div class='sb-label'>🆕 <span>New chat</span> <span class='badge-new'>NEW</span></div>", unsafe_allow_html=True)
-    new_chat=st.button("New chat",key="btn_new")
+    if st.button("New chat", key="btn_new"):
+        st.session_state.messages = []
+        st.rerun()
 
-    st.markdown("<div class='sb-label'>🧪 <span>Beamline Mode</span></div>", unsafe_allow_html=True)
-    st.session_state.beamline_mode = st.toggle(
-        "Beamline Mode (Drive+Markdown only; no website)",
-        value=st.session_state.beamline_mode,
-        help="ON = faster, local docs only. OFF = also include Website.",
-        key="toggle_beamline",
-    )
-
-    st.markdown("<div class='sb-label'>📜 <span>History</span></div>", unsafe_allow_html=True)
-    _ = st.button("History",key="btn_history")
-
-    st.markdown("<div class='sb-label'>⚙️ <span>Settings</span></div>", unsafe_allow_html=True)
-    st.session_state.show_debug=st.toggle(
+    st.session_state.show_debug = st.toggle(
         "Show debug panel",
-        value=st.session_state.get("show_debug",False),
-        help="Show retrieved chunks, router decision, and scores.",
+        value=st.session_state.show_debug,
+        help="Show router decision and a few metrics.",
         key="toggle_debug",
     )
 
-if new_chat:
-    if st.session_state.messages:
-        st.session_state.history.append(
-            {"when":dt.datetime.now().isoformat(timespec="seconds"), "transcript":list(st.session_state.messages)}
-        )
-    st.session_state.messages=[]; st.session_state.view="home"
-    st.session_state.last_generated_code=""; st.session_state.last_task=""
-    st.session_state.last_intent=None; st.session_state.last_topic=None
+    st.markdown("### History")
+    user_msgs = [m for m in st.session_state.messages if m.get("role") == "user"]
+    if user_msgs:
+        for i, msg in enumerate(user_msgs[-5:][::-1], start=1):
+            label = (msg["content"][:30] + "…") if len(msg["content"]) > 30 else msg["content"]
+            if st.button(f"🔄 {label}", key=f"hist_{i}"):
+                st.session_state.messages.append({"role": "user", "content": msg["content"]})
+                st.rerun()
+    else:
+        st.caption("No conversation history yet.")
 
-# ---------------- Header plaque ----------------
-cc1,cc2,cc3=st.columns([1,2,1])
-with cc2:
-    st.markdown(
-        f"<div class='plaque' style='display:block; text-align:center;'>"
-        f"QM2 ASSISTANT • Beamline Mode: {'ON' if st.session_state.beamline_mode else 'OFF'}</div>",
-        unsafe_allow_html=True,
-    )
-
-# ---------------- Chat history render ----------------
-if not st.session_state.messages and st.session_state.view=="home":
-    st.markdown(
-        """<div style="display:flex; justify-content:center; align-items:center; height:280px;">
-           <div style="font-size:28px; font-weight:700; color:#1a1a1a;">Hi! How can I help you today?</div></div>""",
-        unsafe_allow_html=True,
-    )
+# ---------------- Replay chat history ----------------
 for m in st.session_state.messages:
     with st.chat_message(m["role"]):
-        st.markdown(m["content"])
-
-# ---------------- Smalltalk + followups ----------------
-_SMALLTALK_RE = re.compile(
-    r"^\s*(hi|hello|hey|yo|hola|namaste|sup|how\s+are\s+you\??|how'?s\s+it\s+going\??|what'?s\s*up\??|whats\s*up\??)\s*$",
-    re.I
-)
-
-def _resolve_followup(uq: str) -> str:
-    q = uq.strip().lower()
-    li = st.session_state.last_intent or {}
-    if not li: return uq
-    if re.search(r"\b(once|one time|write\s+for\s+once|write\s+once)\b", q) and li.get("type")=="rotate":
-        return "write a spec code to spin the crystal 1 time"
-    if re.search(r"\b(also\s+)?add\s+comment\b", q) and li.get("type")=="move_motor":
-        return "write a spec code to move a single motor, and also add a printer comment that it was moved"
-    return uq
-
-def _record_intent_from_task(task_text: str) -> None:
-    t = task_text or ""
-    m = re.search(r"rotate\s+(?:the\s+)?(?:sample|crystal)\s+(\d+)\s+times", t, re.I)
-    if m:
-        st.session_state.last_intent={"type":"rotate","n":int(m.group(1))}
-        st.session_state.last_topic="rotate"; return
-    if re.search(r"\bspin\s+(?:the\s+)?(?:sample|crystal)\s+(?:one|1)\s+time\b", t, re.I):
-        st.session_state.last_intent={"type":"rotate","n":1}
-        st.session_state.last_topic="rotate"; return
-    if re.search(r"\bmove\s+(?:a|one|single)\s+motor\b", t, re.I):
-        st.session_state.last_intent={"type":"move_motor","comment":bool(re.search(r"\b(comment|printer)\b", t, re.I))}
-        st.session_state.last_topic="move_motor"
+        if m.get("code_block") is not None:
+            st.markdown(m["badge_html"], unsafe_allow_html=True)
+            st.code(m["code_block"], language="spec")
+            if m.get("footnote"):
+                st.markdown(m["footnote"], unsafe_allow_html=True)
+        else:
+            st.markdown(m["content"], unsafe_allow_html=True)
 
 # ---------------- Chat input ----------------
 user_query = st.chat_input("Type your query here…")
 if user_query:
-    uq = user_query.strip()
     with st.chat_message("user"):
         st.markdown(user_query)
-    st.session_state.messages.append({"role":"user","content":user_query})
+    st.session_state.messages.append({"role": "user", "content": user_query})
 
-    if _SMALLTALK_RE.match(uq):
-        reply = " Ready to crunch macros and answer beamline questions. What should we tackle?"
-        with st.chat_message("assistant"):
-            st.markdown("<span class='agent-badge agent-text'>📚 TEXT AGENT</span><br/>"+reply, unsafe_allow_html=True)
-        st.session_state.messages.append({"role":"assistant","content":reply})
+    # Route
+    try:
+        r = route_query(user_query)
+        route, conf, method = r["route"], r["confidence"], r["method"]
+    except Exception as e:
+        route, conf, method = "text", 0.0, f"router-error: {e}"
+
+    if st.session_state.show_debug:
+        with st.expander("🔍 Router"):
+            st.write({"route": route, "confidence": conf, "method": method})
+
+    # ---- CODE route ----
+    if route == "code":
+        result, err = run_with_timeout(run_codegen_ui, user_query, timeout_s=45)
+
+        if err or not result:
+            badge = "<span class='agent-badge agent-code'>🛠️ CODE AGENT</span>"
+            code_out = 'print "error or timeout"'
+            with st.chat_message("assistant"):
+                st.markdown(badge, unsafe_allow_html=True)
+                st.code(code_out, language="spec")
+                st.markdown(f"<div class='warn'>Detail: {err or 'unknown'}</div>", unsafe_allow_html=True)
+            st.session_state.messages.append({
+                "role": "assistant",
+                "badge_html": badge,
+                "code_block": code_out,
+                "footnote": f"<div class='warn'>Detail: {err or 'unknown'}</div>",
+            })
+            log_event("error", {"agent":"code","query":user_query,"error":err or "unknown",
+                                "route":route,"method":method})
+        else:
+            code = (result.get("code") or "").strip() or 'print "insufficient evidence"'
+            retrieved = result.get("retrieved", [])
+            debug_info = result.get("debug", {})
+            grounded = bool(result.get("grounded", False))
+            parser_passed = bool(result.get("parser_passed", False))
+            badge = "<span class='agent-badge agent-code'>🛠️ CODE AGENT</span>"
+
+            with st.chat_message("assistant"):
+                st.markdown(badge, unsafe_allow_html=True)
+                st.code(code, language="spec")
+
+                if debug_info.get("exact_prompt"):
+                    with st.expander("🔎 Exact prompt sent to the model"):
+                        st.text(debug_info["exact_prompt"])
+
+                if debug_info.get("rag_context"):
+                    with st.expander("📚 RAG context (joined blob)"):
+                        st.text(debug_info["rag_context"])
+
+                if retrieved:
+                    with st.expander(f"🌿 Retrieved chunks ({len(retrieved)}) — previews"):
+                        for i, chunk in enumerate(retrieved, 1):
+                            st.markdown(f"**[{i}]** score={chunk['score']:.4f} "
+                                        f"src={chunk['source']}  \n"
+                                        f"{chunk['snippet']}...")
+
+                if debug_info.get("raw_output"):
+                    with st.expander("📝 Model raw outputs (no post-processing)"):
+                        st.text(debug_info["raw_output"])
+
+                foot = f"✅ Grounded: {grounded} • ✅ Parser passed: {parser_passed}"
+                st.markdown(foot)
+
+            st.session_state.messages.append({
+                "role": "assistant",
+                "badge_html": badge,
+                "code_block": code,
+                "footnote": foot,
+            })
+            log_event("response", {
+                "query": user_query,"agent":"code","route":route,
+                "confidence":conf,"method":method,
+                "grounded": grounded,"parser_passed": parser_passed,
+                "sources": result.get("sources", []),
+                "prompt_chars": result.get("prompt_chars", 0),
+                "preview": code
+            })
+
+    # ---- TEXT route ----
     else:
-        effective_query = _resolve_followup(uq)
-        with st.chat_message("assistant"):
-            try:
-                route, conf, meta = route_query(effective_query)
-            except Exception as e:
-                route, conf, meta = "text", 0.0, {"error": str(e)}
+        resp, err = run_with_timeout(text_answer, user_query, timeout_s=45)
 
-            # ---------------- CODE route ----------------
-            # ---------------- CODE route ----------------
-            if route == "code":
-                result, err = run_with_timeout(run_codegen_ui, effective_query, timeout_s=30)
-                if err == "timeout":
-                    answer = (
-                        "<span class='agent-badge agent-code'>🛠️ CODE AGENT</span><br/>"
-                        "Timed out while generating code. Showing a minimal SPEC stub you can run, "
-                        "and logging this timeout to help debug."
-                        "\n\n```spec\nprint \"timeout while generating code\"\n```"
-                    )
-                    st.markdown(answer, unsafe_allow_html=True)
-                    log_event({"type":"timeout","agent":"code","query":effective_query})
-                    st.session_state.debug_last={"router":{"route":route,"conf":conf,**meta},"agent":"code","error":"timeout"}
-                    st.session_state.messages.append({"role":"assistant","content":answer})
-                    st.stop()
+        if err or not resp:
+            msg = (f"<span class='agent-badge agent-text'>📚 TEXT AGENT</span><br/>Error/timeout."
+                   f"<br/><div class='warn'>Detail: {err or 'unknown'}</div>")
+            with st.chat_message("assistant"):
+                st.markdown(msg, unsafe_allow_html=True)
+            st.session_state.messages.append({"role": "assistant", "content": msg})
+            log_event("error", {"agent":"text","query":user_query,"error":err or "unknown",
+                                "route":route,"method":method})
+        else:
+            text = resp.get("answer", "")
+            grounded = bool(resp.get("grounded", False))
+            inferred = bool(resp.get("inferred", False))
+            excerpts = resp.get("rag_excerpts", [])
+            sources = resp.get("sources", [])
 
-                elif err and err.startswith("error:"):
-                    msg = err.split("error:",1)[-1].strip()
-                    answer = (
-                        "<span class='agent-badge agent-code'>🛠️ CODE AGENT</span><br/>"
-                        f"Error while generating code: {msg}\n\n"
-                        "```spec\nprint \"codegen error\"\n```"
-                    )
-                    st.markdown(answer, unsafe_allow_html=True)
-                    log_event({"type":"error","agent":"code","query":effective_query,"error":msg})
-                    st.session_state.debug_last={"router":{"route":route,"conf":conf,**meta},"agent":"code","error":msg}
-                    st.session_state.messages.append({"role":"assistant","content":answer})
-                    st.stop()
+            badge = "<span class='agent-badge agent-text'>📚 TEXT AGENT</span>"
+            with st.chat_message("assistant"):
+                st.markdown(f"{badge}<br/>{text}\n\n✅ Grounded: {grounded} • 🤔 Inferred: {inferred}",
+                            unsafe_allow_html=True)
 
-                # ---- unpack primary fields (with safe defaults) ----
-                result = result or {}
-                code = (result.get("code") or "").strip()
-                rationale = result.get("rationale") or ""
-                warnings = result.get("warnings") or ""
-                raw_prompt = result.get("raw_prompt") or ""
-                rag_joined = result.get("rag_joined") or ""
-                rag_excerpts = result.get("rag_excerpts") or []
-                raw_model = result.get("raw_model_outputs") or {}
-                draft_raw = (raw_model.get("draft") or "").strip()
-                repaired_raw = (raw_model.get("repaired") or "").strip()
+                if excerpts:
+                    with st.expander(f"🌿 Retrieved chunks ({len(excerpts)}) — previews"):
+                        for i, chunk in enumerate(excerpts, 1):
+                            src, score = sources[i-1] if i-1 < len(sources) else ("unknown", 0.0)
+                            st.markdown(f"**[{i}]** score={score:.4f} src={src}  \n"
+                                        f"{chunk[:300]}...")
 
-                # ---- main SPEC output (as before) ----
-                header = "<span class='agent-badge agent-code'>🛠️ CODE AGENT</span>"
-                answer = f"{header}\n\n```spec\n{code}\n```"
-                if rationale: answer += f"\n\n**Rationale:** {rationale}"
-                if warnings and warnings not in {"no-code-intent"}: answer += f"\n\n**Note:** {warnings}"
-                st.markdown(answer, unsafe_allow_html=True)
+            st.session_state.messages.append({
+                "role": "assistant",
+                "content": text,
+                "badge_html": badge,
+                "rag_chunks": excerpts,
+                "sources": sources,
+            })
+            log_event("response", {
+                "query": user_query,"agent":"text","route":route,
+                "confidence":conf,"method":method,
+                "grounded": grounded,"inferred": inferred,
+                "sources": sources,
+                "prompt_chars": resp.get("prompt_chars", 0),
+                "preview": text
+            })
 
-                # ---- NEW: RAG + raw model outputs UI ----
-                with st.expander("🔎 Exact prompt sent to the model"):
-                    st.code(raw_prompt, language="text")
-
-                with st.expander("📚 RAG context (joined blob)"):
-                    st.code(rag_joined, language="text")
-
-                if rag_excerpts:
-                    with st.expander(f"🧩 Retrieved chunks ({len(rag_excerpts)}) — previews"):
-                        for i, chunk_head in enumerate(rag_excerpts, 1):
-                            st.markdown(f"**Chunk {i}**")
-                            st.code(chunk_head, language="text")
-
-                with st.expander("🧠 Model raw outputs (no post-processing)"):
-                    st.markdown("**Draft (first pass)**")
-                    st.code(draft_raw or "<empty>", language="text")
-                    st.markdown("**Repair (second pass)**")
-                    st.code(repaired_raw or "<empty>", language="text")
-
-                # ---- state + logs (keep existing) ----
-                st.session_state.last_generated_code = code
-                st.session_state.last_task = effective_query
-                _record_intent_from_task(effective_query)
-
-                log_event({
-                    "type":"router","route":route,"conf":conf,"query":effective_query,
-                    "beamline":st.session_state.beamline_mode
-                })
-
-                # enrich debug payload so your Debug panel shows the same info
-                dbg_payload = {
-                    "router":{"route":route,"conf":conf,**meta},
-                    "agent":"code",
-                    "retrieved": (result.get("_debug") or {}).get("retrieved", []),
-                    "raw_prompt": raw_prompt,
-                    "rag_joined": rag_joined[:2000],  # clip for panel
-                    "raw_model_outputs": {
-                        "draft_head": draft_raw[:1000],
-                        "repaired_head": repaired_raw[:1000]
-                    }
-                }
-                st.session_state.debug_last = dbg_payload
-                st.session_state.messages.append({"role":"assistant","content":answer})
-
-
-            # ---------------- TEXT route ----------------
-            else:
-                resp, err = run_with_timeout(text_answer, effective_query, timeout_s=30, beamline=st.session_state.beamline_mode)
-                if err == "timeout":
-                    fallback = "<span class='agent-badge agent-text'>📚 TEXT AGENT</span><br/>Timed out fetching an answer."
-                    st.markdown(fallback, unsafe_allow_html=True)
-                    log_event({"type":"timeout","agent":"text","query":effective_query})
-                    st.session_state.debug_last={"router":{"route":route,"conf":conf,**meta},"agent":"text","error":"timeout"}
-                    st.session_state.messages.append({"role":"assistant","content":"Timed out fetching an answer."})
-                    st.stop()
-
-                elif err and err.startswith("error:"):
-                    msg = err.split("error:",1)[-1].strip()
-                    fallback = f"<span class='agent-badge agent-text'>📚 TEXT AGENT</span><br/>Error while answering: {msg}"
-                    st.markdown(fallback, unsafe_allow_html=True)
-                    log_event({"type":"error","agent":"text","query":effective_query,"error":msg})
-                    st.session_state.debug_last={"router":{"route":route,"conf":conf,**meta},"agent":"text","error":msg}
-                    st.session_state.messages.append({"role":"assistant","content":fallback})
-                    st.stop()
-
-                # Accept both (text, cites, dbg) shape (always returned by our text_agent now)
-                text, cites, dbg = resp if isinstance(resp, (list, tuple)) else ("", [], {})
-                header = "<span class='agent-badge agent-text'>📚 TEXT AGENT</span>"
-                st.markdown(header+"<br/>"+(text or ""), unsafe_allow_html=True)
-                if cites:
-                    with st.expander("Sources"):
-                        for p, s in cites:
-                            st.markdown(f"<div class='result-card'><code class='path'>{p}</code><br/>{s}</div>", unsafe_allow_html=True)
-                log_event({"type":"router","route":route,"conf":conf,"query":effective_query,"beamline":st.session_state.beamline_mode})
-                st.session_state.debug_last={
-                    "router":{"route":route,"conf":conf,**meta},
-                    "agent":"text",
-                    "topk":[{"src":p,"preview":(s or "")[:200]} for p,s in (cites or [])],
-                    "retrieval": dbg or {}
-                }
-                st.session_state.messages.append({"role":"assistant","content":text or ""})
-
-# ---------------- Debug panel ----------------
-if st.session_state.show_debug and st.session_state.debug_last:
-    with st.expander("Debug info"):
-        st.json(st.session_state.debug_last)
-    st.caption("Events are also logged to: logs/session.jsonl")
+# Footer
+st.markdown("---")
+st.markdown("💡 **Tips:** Try queries like 'write a scan macro', 'explain SPEC motors', or 'what is ascan'")

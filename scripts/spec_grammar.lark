@@ -1,0 +1,86 @@
+// spec_grammar.lark — simplified SPEC grammar (~80% coverage)
+// Sources: SPEC Reference Manual (Syntax & Grammar Rules, pp. 46–76)
+//          SPEC Short Manual (built-in commands list)
+
+// ----------------------
+// Top level
+// ----------------------
+start: statement+
+
+// ----------------------
+// Statements
+// ----------------------
+statement: macro_def
+         | command
+         | loop
+         | if_stmt
+         | assignment
+         | PRINT
+
+// ----------------------
+// Macro definitions
+// Manual: "Macro Facility" section
+// ----------------------
+macro_def: "def" NAME "'" BODY "'"
+
+// BODY token = any text until the next closing quote.
+// We don’t try to parse internals here, just check structure.
+BODY: /(.|\n)+/
+
+// ----------------------
+// Commands
+// Manual: Short Manual (Built-in Commands)
+// ----------------------
+command: CMD args*
+
+CMD: "mv" | "umv" | "umvr"
+   | "ascan" | "dscan" | "mesh" | "ct" | "wa"
+   | "waitmove" | "getangles"
+   | "print" | "printf" | "fprintf"
+
+args: NAME | NUMBER | STRING
+
+// ----------------------
+// Loops
+// Manual: Flow control (C-style)
+// ----------------------
+loop: for_loop | while_loop
+
+for_loop: "for" "(" assignment? ";" comparison? ";" assignment? ")" "{" statement* "}"
+while_loop: "while" "(" comparison ")" "{" statement* "}"
+
+// ----------------------
+// Conditionals
+// Manual: "if" (C-style syntax)
+// ----------------------
+if_stmt: "if" "(" comparison ")" "{" statement* "}" ("else" "{" statement* "}")?
+
+// ----------------------
+// Assignments & expressions
+// Manual: Variables, assignment expressions
+// ----------------------
+assignment: NAME "=" expr
+expr: NUMBER | NAME | STRING
+
+// ----------------------
+// Comparisons
+// Manual: Operators (pp. ~55)
+// ----------------------
+comparison: expr OP expr
+OP: "==" | "!=" | "<" | ">" | "<=" | ">="
+
+// ----------------------
+// Tokens
+// ----------------------
+NAME: /[a-zA-Z_][a-zA-Z0-9_]*/
+NUMBER: /[0-9]+(\.[0-9]+)?/
+STRING: /"[^"]*"/
+
+// Print shortcut
+PRINT: /print\s+\".*\"/
+
+// ----------------------
+// Ignore spaces & comments
+// ----------------------
+%ignore /\s+/
+%ignore /#.*/    // SPEC allows comments starting with #
