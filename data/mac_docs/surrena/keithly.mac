@@ -1,0 +1,159 @@
+#for use of keithly 2400 at 4b
+#serial settings
+#9600 8b 1 stop b no parity no flow control
+#terminator <CR>
+#moxa TCP server mode defaults OK
+
+global KEITHLY_ADD
+global KEITHLY_ADD1
+global MOXA_ADD
+global K_V
+global K_V1
+
+MOXA_ADD = "192.168.182.95"
+
+KEITHLY_ADD = sprintf("%s:4002",MOXA_ADD)
+KEITHLY_ADD1 = sprintf("%s:4003",MOXA_ADD)
+
+def keithly_id(unit)'{
+    keithly_send(unit,"*IDN?")
+    p keithly_get(unit)
+}'
+
+def keithly_off(unit)'{
+    keithly_send(unit,":OUTPUT 0")
+}'
+
+def keithly_on(unit)'{
+    keithly_send(unit,":OUTPUT 1")
+}'
+
+def keithly_v(unit,voltage,idle) '{
+    local msg i kv
+
+    if(voltage > 210 || voltage < -210){
+        p voltage " outside of acceptable voltage range"
+        exit
+    }
+
+    #K_V = voltage # for macro counter
+    keithly_send(unit,"SOURCE:VOLTAGE:MODE FIXED")
+    keithly_send(unit,"SOURCE:VOLTAGE:RANGE:AUTO 1")
+    keithly_send(unit,":OUTPUT 1")
+    keithly_send(unit,"SOURCE:VOLTAGE?")
+    kv = keithly_get(unit)
+    p kv
+    sleep(.1)
+
+    if(kv > 210 || kv < -210){
+        p voltage " outside of acceptable voltage range"
+        exit
+    }
+
+    
+    if(voltage > 0){
+        for(i = kv; i < voltage; i++){
+            keithly_send(unit,sprintf("SOURCE:VOLTAGE:LEVEL:IMMEDIATE:AMPLITUDE %i",i))
+            sleep(idle)
+        }
+    }
+    else{
+        for(i = kv; i > voltage; i--){
+            keithly_send(unit,sprintf("SOURCE:VOLTAGE:LEVEL:IMMEDIATE:AMPLITUDE %i",i))
+            sleep(idle)
+        }
+    }
+    keithly_send(unit,sprintf("SOURCE:VOLTAGE:LEVEL:IMMEDIATE:AMPLITUDE %f",voltage))
+    sleep(.1)
+    
+    #for macro counters
+    keithly_send(unit,"SOURCE:VOLTAGE?")
+    if(unit)
+        K_V1 = keithly_get(unit)
+    else
+        K_V = keithly_get(unit)
+}'
+
+#has initial voltage and final voltage arguments, slightly safer usage than keithly_v()
+def k_v(unit,vi,vf,idle) '{
+    local msg i kv
+
+    if(vi > 210 || vi < -210){
+        p vi " outside of acceptable voltage range"
+        exit
+    }
+
+    if(vf > 210 || vf < -210){
+        p vf " outside of acceptable voltage range"
+        exit
+    }
+
+    #K_V = voltage # for macro counter
+    keithly_send(unit,"SOURCE:VOLTAGE:MODE FIXED")
+    keithly_send(unit,"SOURCE:VOLTAGE:RANGE:AUTO 1")
+    keithly_send(unit,":OUTPUT 1")
+    sleep(.1)
+
+    if(vf > 0){
+        for(i = vi; i < vf; i++){
+            keithly_send(unit,sprintf("SOURCE:VOLTAGE:LEVEL:IMMEDIATE:AMPLITUDE %i",i))
+            sleep(idle)
+        }
+    }
+    else{
+        for(i = vi; i > vf; i--){
+            keithly_send(unit,sprintf("SOURCE:VOLTAGE:LEVEL:IMMEDIATE:AMPLITUDE %i",i))
+            sleep(idle)
+        }
+    }
+    keithly_send(unit,sprintf("SOURCE:VOLTAGE:LEVEL:IMMEDIATE:AMPLITUDE %f",vf))
+    sleep(.1)
+    
+    #for macro counters
+    keithly_send(unit,"SOURCE:VOLTAGE?")
+    if(unit)
+        K_V1 = keithly_get(unit)
+    else
+        K_V = keithly_get(unit)
+}'
+
+def keithly_send(unit,cmd) '{
+    local msg
+
+    sock_par(unit,"flush")
+    msg = sprintf("%s\n",cmd)
+
+    if(unit){
+        sock_put(KEITHLY_ADD1,msg)
+    }
+    else {
+        sock_put(KEITHLY_ADD,msg)
+    }
+
+}'
+
+def keithly_get(unit) '{
+    local n
+    
+    if(unit)
+        return sock_get(KEITHLY_ADD1,"\r")
+    else
+        return sock_get(KEITHLY_ADD,"\r")
+        
+}'
+
+"""
+for macro counter
+deviuce NUM          Type
+keithly  1   Macro Counter
+"""
+def keithly_config(mne,key,unit,blah,chan) '{
+}'
+
+def keithly_cmd(mne,key) '{
+    if(key == "counts")
+        if(mne == outer)
+            return K_V
+        else if(mne == inner)
+            return K_V1
+}'

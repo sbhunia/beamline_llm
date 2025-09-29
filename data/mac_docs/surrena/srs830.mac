@@ -1,0 +1,27 @@
+global SRS830_ADD
+
+#MOXA_ADD = "192.168.182.###"
+SRS830_ADD = sprintf("%s:400#",MOXA_ADD)
+
+def srs830_send(cmd) '{
+    local msg val
+
+    debug 64
+    sock_par(SRS830_ADD,"flush")
+    msg = sprintf("%s\r",cmd)
+
+    sock_put(SRS830_ADD,msg)
+
+    p srs830_get()
+    debug 0
+    #split(keysight_get(),val,",")
+    #return val[0]
+}'
+
+def srs830_get() '{
+    return sock_get(SRS830_ADD)
+}'
+
+def sr830_snap() '{
+    srs830_send("SNAP? 10,11")  #CH1 and CH2 display...
+}'

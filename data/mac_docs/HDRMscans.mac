@@ -1,0 +1,504 @@
+def sortmypathout '
+_mysamplepath="raw6M/" DATAFILE "/"
+#_mysample="sample12_11_22/"
+_mysample="check_lineup/"
+_rampre="/ramdisk/ramshaw-3435-a/"
+'
+
+
+def threextalscan '
+
+sortmypathout
+
+_myT="$1"
+
+te $1
+sleep($2)
+
+pil_on
+
+eval(sprintf("u mkdir %s",_mysamplepath))
+eval(sprintf("u mkdir %s%s",_mysamplepath,_mysample))
+eval(sprintf("u mkdir %s%s%s",_mysamplepath,_mysample,_myT))
+
+sleep(5)
+
+_pilrampath=_rampre _mysamplepath _mysample _myT
+#_pilrampath=_mysamplepath _mysample _myT
+eval(sprintf("pil_setdir %s/",_pilrampath))
+#eval(sprintf("pil_setdir %s",_pilrampath))
+
+pil_settrig "Mult. Trigger"
+
+
+umv chi 90 th 0 phi 0
+opens
+sleep(1)
+flyscan phi 0 365 3650 .1
+sleep(1)
+closes
+
+umv chi 85 th 3 phi 0
+opens
+sleep(1)
+flyscan phi 0 365 3650 .1
+sleep(1)
+closes
+
+umv chi 80 th -3 phi 0
+opens
+sleep(1)
+flyscan phi 0 365 3650 .1
+sleep(1)
+closes
+
+
+'
+
+def twoxtalscan '
+
+sortmypathout
+
+_myT="$1"
+
+te $1
+sleep($2)
+
+pil_on
+
+eval(sprintf("u mkdir %s",_mysamplepath))
+eval(sprintf("u mkdir %s%s",_mysamplepath,_mysample))
+eval(sprintf("u mkdir %s%s%s",_mysamplepath,_mysample,_myT))
+
+sleep(5)
+
+_pilrampath=_rampre _mysamplepath _mysample _myT
+#_pilrampath=_mysamplepath _mysample _myT
+eval(sprintf("pil_setdir %s/",_pilrampath))
+#eval(sprintf("pil_setdir %s",_pilrampath))
+
+pil_settrig "Mult. Trigger"
+
+
+umv chi 95 th 3 phi 0
+opens
+sleep(1)
+flyscan phi 0 365 3650 .1
+sleep(1)
+closes
+
+umv chi 100 th 6 phi 0
+opens
+sleep(1)
+flyscan phi 0 365 3650 .1
+sleep(1)
+closes
+
+
+'
+
+
+def onextalscan '
+
+sortmypathout
+
+_myT="$1"
+
+te $1
+sleep($2)
+
+pil_on
+
+eval(sprintf("u mkdir %s",_mysamplepath))
+eval(sprintf("u mkdir %s%s",_mysamplepath,_mysample))
+eval(sprintf("u mkdir %s%s%s",_mysamplepath,_mysample,_myT))
+
+sleep(5)
+
+_pilrampath=_rampre _mysamplepath _mysample _myT
+#_pilrampath=_mysamplepath _mysample _myT
+eval(sprintf("pil_setdir %s/",_pilrampath))
+#eval(sprintf("pil_setdir %s",_pilrampath))
+
+pil_settrig "Mult. Trigger"
+
+#umv chi 100 th 6 phi 0
+umv chi 90 th 0 phi 0
+#umv chi 95 th 3 phi 0
+
+opens
+sleep(1)
+flyscan phi 0 365 3650 .1
+sleep(1)
+closes
+
+
+'
+
+def windowrock '
+
+sortmypathout
+
+_myT="$1"
+
+te $1
+sleep($2)
+
+pil_on
+
+eval(sprintf("u mkdir %s",_mysamplepath))
+eval(sprintf("u mkdir %s%s",_mysamplepath,_mysample))
+eval(sprintf("u mkdir %s%s%s",_mysamplepath,_mysample,_myT))
+
+sleep(5)
+
+_pilrampath=_rampre _mysamplepath _mysample _myT
+#_pilrampath=_mysamplepath _mysample _myT
+eval(sprintf("pil_setdir %s/",_pilrampath))
+#eval(sprintf("pil_setdir %s",_pilrampath))
+
+pil_settrig "Mult. Trigger"
+
+#umv chi 100 th 6 phi 0
+umv chi 90 th 0 phi 0
+#umv chi 95 th 3 phi 0
+
+opens
+sleep(1)
+flyscan phi -60 60 5400 4
+sleep(1)
+closes
+
+
+'
+
+
+
+def twotdepscan '
+
+sortmypathout
+
+_myT="$1"
+
+te $1
+sleep($2)
+
+pil_on
+
+eval(sprintf("u mkdir %s",_mysamplepath))
+eval(sprintf("u mkdir %s%s",_mysamplepath,_mysample))
+eval(sprintf("u mkdir %s%s%s",_mysamplepath,_mysample,_myT))
+
+sleep(5)
+
+_pilrampath=_rampre _mysamplepath _mysample _myT
+#_pilrampath=_mysamplepath _mysample _myT
+eval(sprintf("pil_setdir %s/",_pilrampath))
+#eval(sprintf("pil_setdir %s",_pilrampath))
+
+pil_settrig "Mult. Trigger"
+
+
+umv chi 90 th 0 phi 0
+opens
+sleep(1)
+flyscan phi 0 180 1800 .1
+sleep(1)
+closes
+
+umv chi 85 th -3
+opens
+sleep(1)
+flyscan phi 180 0 1800 .1
+sleep(1)
+closes
+
+
+'
+
+def greven_nov_tdep_lsco '
+#heating
+for (loopT=130; loopT<=200; loopT=loopT+5){
+  eval(sprintf("onextalscan %s 180",loopT))
+}
+'
+
+def greven_nov_tdep_oneaxis '
+#cooling usage greven_nov_tdep start_T end_T T_step sleep_sec
+
+for (loopT=$1; loopT>$2; loopT=loopT+$3){
+  eval(sprintf("onextalscan %s %s",loopT,$4))
+}
+'
+
+
+def greven_nov_tdep '
+#cooling usage greven_nov_tdep start_T end_T T_step sleep_sec
+
+for (loopT=$1; loopT>$2; loopT=loopT+$3){
+  eval(sprintf("threextalscan %s %s",loopT,$4))
+}
+'
+
+#'
+
+#def orderparam '
+#for (loopT=400; loopT>375; loopT=loopT-2){
+#  eval(sprintf("threextalscan %s 1",loopT))
+#}
+#for (loopT=375; loopT>364; loopT=loopT-1){
+
+#threextalscan 366.9 1
+
+#for (loopT=366; loopT>364; loopT=loopT-1){
+#  eval(sprintf("threextalscan %s 1",loopT))
+#}
+#for (loopT=364; loopT>349; loopT=loopT-2){
+#  eval(sprintf("threextalscan %s 1",loopT))
+#}
+#'
+
+
+
+
+def orderparam '
+
+for (loopT=55; loopT>51; loopT=loopT-2){
+  eval(sprintf("twotdepscan %s 1",loopT))
+}
+
+threextalscan 50 1
+
+for (loopT=49; loopT>21; loopT=loopT-2){
+  eval(sprintf("twotdepscan %s 1",loopT))
+}
+
+threextalscan 20 1
+'
+
+def automateTempScans '
+for (loopT=360; loopT<364; loopT=loopT+2){
+  eval(sprintf("threextalscan %s 1",loopT))
+}
+
+for (loopT=364; loopT<368; loopT=loopT+1){
+  eval(sprintf("threextalscan %s 1",loopT))
+}
+
+#for (loopT=368; loopT<400; loopT=loopT+2){
+#  eval(sprintf("threextalscan %s 1",loopT))
+#}
+'
+
+def heightcheck '
+
+umvr samz -.5
+measT = $1
+
+for (ii=0;ii<11;ii++){
+  eval(sprintf("onetdepscan %s 100",measT))
+  umvr samz .1
+}
+
+umvr samz -.5
+'
+
+def orderparam2 '
+ thresh = 2 
+ measT = $1
+ te measT
+ 
+ done = 0
+ while(!done) {
+   measuretemp
+   t_diff = TEMP_S - measT
+   #t_diff = measT-TEMP_S
+   p (t_diff)
+   if (t_diff<thresh){
+      done = 1
+   }
+   else {
+      eval(sprintf("onetdepscan %s 200",measT))
+   }
+}
+'
+
+def powderscan '
+
+sortmypathout
+
+_myT="$1"
+
+te $1
+sleep($2)
+
+pil_on
+
+eval(sprintf("u mkdir %s",_mysamplepath))
+eval(sprintf("u mkdir %s%s",_mysamplepath,_mysample))
+eval(sprintf("u mkdir %s%s%s",_mysamplepath,_mysample,_myT))
+
+sleep(5)
+
+_pilrampath=_rampre _mysamplepath _mysample _myT
+#_pilrampath=_mysamplepath _mysample _myT
+eval(sprintf("pil_setdir %s/",_pilrampath))
+#eval(sprintf("pil_setdir %s",_pilrampath))
+
+pil_settrig "Mult. Trigger"
+
+
+umv chi 90 th 0 phi 0
+opens
+sleep(1)
+flyscan phi 0 360 180 1
+sleep(1)
+closes
+
+
+'
+
+
+def quickrockfly '
+
+sortmypathout
+
+_myT="quickrockfly"
+
+
+pil_on
+
+eval(sprintf("u mkdir %s",_mysamplepath))
+eval(sprintf("u mkdir %s%s",_mysamplepath,_mysample))
+eval(sprintf("u mkdir %s%s%s",_mysamplepath,_mysample,_myT))
+
+sleep(5)
+
+_pilrampath=_rampre _mysamplepath _mysample _myT
+#_pilrampath=_mysamplepath _mysample _myT
+eval(sprintf("pil_setdir %s/",_pilrampath))
+#eval(sprintf("pil_setdir %s",_pilrampath))
+
+pil_settrig "Mult. Trigger"
+
+
+umv chi 90 th 0 phi 0
+opens
+sleep(1)
+flyscan phi -.5 .5 10 .1
+sleep(1)
+closes
+
+
+'
+
+def heightscan '
+
+pil_settrig "Internal"
+eval(sprintf("pil_setdir %s/tiffs/",_rampre))
+opens
+lup samz -.4 .4 80 .2
+closes
+'
+
+def checkresonance '
+
+pil_settrig "Internal"
+eval(sprintf("pil_setdir %s/tiffs/",_rampre))
+opens
+Escan 11.2 11.24 40 2
+closes
+'
+
+
+def onescan '
+
+sortmypathout
+
+_myT="$1"
+
+te $1
+sleep($2)
+
+pil_on
+
+eval(sprintf("u mkdir %s",_mysamplepath))
+eval(sprintf("u mkdir %s%s",_mysamplepath,_mysample))
+eval(sprintf("u mkdir %s%s%s",_mysamplepath,_mysample,_myT))
+
+sleep(5)
+
+_pilrampath=_rampre _mysamplepath _mysample _myT
+#_pilrampath=_mysamplepath _mysample _myT
+eval(sprintf("pil_setdir %s/",_pilrampath))
+#eval(sprintf("pil_setdir %s",_pilrampath))
+
+pil_settrig "Mult. Trigger"
+
+
+umv phi 0
+opens
+sleep(1)
+flyscan phi -40 0 400 .5
+sleep(1)
+closes
+
+
+'
+
+def powderscan2 '
+
+sortmypathout
+
+_myT="$1"
+
+te $1
+
+
+pil_on
+
+eval(sprintf("u mkdir %s",_mysamplepath))
+eval(sprintf("u mkdir %s%s",_mysamplepath,_mysample))
+eval(sprintf("u mkdir %s%s%s",_mysamplepath,_mysample,_myT))
+
+sleep(5)
+
+_pilrampath=_rampre _mysamplepath _mysample _myT
+#_pilrampath=_mysamplepath _mysample _myT
+eval(sprintf("pil_setdir %s/",_pilrampath))
+#eval(sprintf("pil_setdir %s",_pilrampath))
+
+pil_settrig "Mult. Trigger"
+
+
+umv chi 90 th 0 phi 0
+
+sleep(1)
+flyscan phi 0 360 180 1
+sleep(1)
+umv phi 0
+
+sleep($2)
+
+'
+
+
+def time_dep '
+
+ measT = $1
+ espera = $2 
+ opens
+ for (ii=0;ii<10000;ii++){
+   eval(sprintf("powderscan2 %s %s",measT,espera))
+   p(ii)
+ }
+
+'
+
+def march_sat_remote '
+threextalscan 420 150
+threextalscan 440 150
+threextalscan 460 150
+threextalscan 480 150
+threextalscan 500 150
+'

@@ -1,0 +1,5 @@
+dscan chi -0.08 0.08 32 1
+umv chi pl_COM
+dscan th -0.08 0.08 32 1
+umv th pl_xMAX
+wh

@@ -1,0 +1,12 @@
+def phi_settle_on 'cdef("user_premove","identiphi","_phi_settle_",0x10)'
+def phi_settle_off 'cdef("","","_phi_settle_","delete")'
+
+def _phi_sleep '{
+    sleep(PHI_SLEEP)
+    cdef("","","_phi_sleep_","delete")
+}'
+
+def identiphi '{
+    if(move_info(phi,"to_move"))
+        cdef("user_postmove","_phi_sleep;","_phi_sleep_",0x10)
+}'

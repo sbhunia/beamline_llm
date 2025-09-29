@@ -1,0 +1,30 @@
+global _pilpath
+
+def showpil_setpath '
+_pilpath="$1"
+'
+
+def showpil '
+if ($# != 1) {
+_name1=epics_get("PIL8:cam1:FileName_RBV", "string")
+_name2=epics_get("PIL8:cam1:FileNumber_RBV")-1
+eval(sprintf("u python /mnt/home/chess_id4b/PythonPilatus/showpil.py %s%s_%3.3d.tiff &",_pilpath,_name1,_name2))
+#eval(sprintf("u python --q /mnt/home/chess_a2/PythonPilatus/show6M.py %s%s_%3.3d.tiff &",_pilpath,_name1,_name2))
+}
+
+if ($# == 1) {eval(sprintf("u python /mnt/home/chess_id4b/PythonPilatus/showpil.py %s%s.tiff &",_pilpath,"$1"))}
+
+'
+
+def viewpilatus_on 'qdo /mnt/home/chess_id4b/Macros/pilvieweron.mac'
+def viewpilatus_off 'qdo /mnt/home/chess_id4b/Macros/pilvieweroff.mac'
+
+def pilatuscopylast '
+_name1=epics_get("PIL8:cam1:FileName_RBV", "string")
+_name2=epics_get("PIL8:cam1:FileNumber_RBV")-1
+eval(sprintf("u cp %s%s_%3.3d.tiff ./lastshot.tiff",_pilpath,_name1,_name2))
+'
+
+
+printf("\nUse showpil_setpath to tell plotting routines where to find the pilatus files\nRun pilatuslive.py from a terminal to start the live viewer\nHave fun\n\n")
+

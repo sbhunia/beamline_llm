@@ -1,0 +1,10 @@
+counter_par(ic1, "io_config", 1)
+
+def vlow '
+counter_par(ic1, "clr_bit", 0)
+'
+
+def vhigh '
+counter_par(ic1, "set_bit", 0)
+'
+

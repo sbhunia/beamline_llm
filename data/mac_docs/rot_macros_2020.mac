@@ -1,0 +1,170 @@
+
+def fastsweep '{
+	local _start_sweep _end_sweep _delta_omega _sweep_mode _exp_time _move_time _omega_list
+	local _base_rate _accel_time _num_steps _steady_rate _accel_rate _accel_rate_Hz 
+	local _shutter_time_1 _shutter_time_2 _shutter_time_3 _omega_comp _sleep_time phi_step est_phi
+	local jjj _start_omega _end_omega _exp_omega _dead_corr _pil_dir _METAFILE tzero tnow _flag _tempnow	
+
+#	_METAFILE="logfile_" DATAFILE ".sweep"
+
+	_pilpathpre="/ramdisk/lindenberg-2965-B/"
+	_specpathpre="/nfs/chess/id4b/current/lindenberg-2965-B/"
+                    
+#L FILE
+
+	if ($# < 6) {
+		p "Usage: fastsweep [motor] [start] [finish] [steps] [exp_in_sec] [path] "
+		exit
+	}
+
+	if ($# >7) { _flag = $8 }
+	else { _flag=  0}
+	
+#	shutter_auto 0 ### SWEEP MACRO CONTROLS SHUTTER
+	vlow
+
+	### $1 IS THE OMEGA MOTOR
+	_motor 		= "$1"
+	_start_sweep 	= $2
+	_end_sweep 	= $3
+	_num_steps	= $4
+	_exp_time    	= $5
+	_dead_corr=_exp_time-0.005
+	_pil_dir=_pilpathpre "$6"
+	_METAFILE=_specpathpre "$6" "scan.spec"
+	phi_step=(($3-$2)/$4)
+	
+	eval(sprintf("u mkdir %s%s",_specpathpre,"$6"))
+
+	on(_METAFILE);
+		p "#F spec.scan"
+		p sprintf("#E %d", time())
+		p sprintf("#D %s", date())
+		p "#C fourc User = specuser"
+#		if ( _flag>0 ){
+#			_tempnow = cryoget()
+#			p sprintf("#C %s Temperature= %g",date(),_tempnow)
+#		}
+		p ""
+		p sprintf("#Angles th chi mu %g %g %g ",A[th], A[chi], A[mu])
+		p sprintf("#S 1 fastsweep %s %g %g %d %g %s %s","$1",$2,$3,$4,$5,"$6","$7")
+		p sprintf("#D %s", date())
+		p sprintf("#T %g (Seconds)", _exp_time)
+		p "#N 7"
+		p "#L EPOCH Phi CESR IC1 IC2 TEMPERATURE DIODE"
+	off(_METAFILE)
+
+#step 2:  set motor rates
+
+	_base_rate 	= motor_par(_motor, "base_rate")
+	_step_per_deg	= motor_par(_motor, "step_size")
+
+	_delta_omega= (_end_sweep-_start_sweep)/_num_steps
+
+	### CALCULATE MODE ZERO RATES		
+	_steady_rate	= fabs( _step_per_deg * _delta_omega / _exp_time)
+	_accel_rate_Hz	= 1024*64 #MUST BE MULTIPLE OF 1024, 64 input 11/21/13
+	_accel_time	= ( sqrt(_steady_rate*_steady_rate) - _base_rate ) / _accel_rate_Hz
+	_accel_rate	= _accel_rate_Hz / _step_per_deg
+	_accel_time_ms	=  _accel_time * 1000
+	_move_time	= _exp_time+2*_accel_time
+
+	### OMEGA COMPENSATION
+	_omega_comp	= _accel_rate * _accel_time * _accel_time * 0.5 ##1/2(alpha)t^2
+
+	p "Rotation rate is " _steady_rate " steps/sec.  (" (1.0*_delta_omega)/(1.0*_exp_time) " deg/sec.)"
+	p "Base rotation rate is " _base_rate ", steps/sec."
+	p "Acceleate for " _accel_time " seconds."
+	p "Phi compensation is " _omega_comp " degrees."
+
+#step 3:  move to initial position, minus omega offset
+
+	motor_par(_motor, "velocity", 40000)	### RETURN TO ORIGINAL STEADY_STATE_RATE
+	motor_par(_motor, "acceleration", 500)
+
+	eval(sprintf("umv %s %f",_motor,_start_sweep))
+#	waitmove
+
+	motor_par(_motor, "acceleration", _accel_time_ms)
+	motor_par(_motor, "velocity", _steady_rate)
+
+	_exp_omega	= (_start_sweep +  _end_sweep) / 2 
+	_start_omega	= _start_sweep - _omega_comp
+	_end_omega	= _end_sweep + _omega_comp
+	
+	p "Actual range from phi=" _start_omega " to phi=" _end_omega
+	p "Shutter open from phi=" _start_sweep " to phi=" _end_sweep 
+
+	eval(sprintf("umv %s %f",_motor,_start_omega))
+
+	sleep(0.05)
+
+#step 4:  prepare the 6M
+	epics_put("PIL10:cam1:TriggerMode",2) #set the mode to external enable
+	epics_put("PIL10:cam1:AcquireTime",_dead_corr)#set the exposure time
+	epics_put("PIL10:cam1:AcquirePeriod",_exp_time)#set the exposure period (50 ms longer)
+	epics_put("PIL10:cam1:NumImages",_num_steps)#set the number of frames
+	epics_put("PIL10:cam1:FilePath",_pil_dir)#set pilatus directory
+	epics_put("PIL10:cam1:FileNumber",1) #reset pilatus next file number
+	epics_put("PIL10:cam1:Acquire",1)#arm the 6M
+	epics_put("PIL10:cam1:FileName","scan")#set filename to "scan"
+	while (epics_get("PIL10:cam1:Acquire_RBV") != "Acquiring") {
+	sleep(0.05)
+   p "in the loop"
+  	}
+   sleep(1)
+#step 5:  accelerate to speed
+
+	_break=_accel_time
+
+	eval(sprintf("_mv %s %f",_motor,_end_omega))
+#step 6:  open shutter at intended start position, also triggering 6M
+#L FILEN EPOCH Phi CESR IC1 IC2 IC3 IC4
+	sleep(_break) 			### _accel_time - shutter open - TIME ADDED TO ACCOUNT FOR LATENCY - CHANGE DEPENDING ON SYSTEM
+	tzero=time()
+	tnow=time()-tzero
+#	opens   				### USE PHOTO DIODE TO CHECK WITH MOTOR
+	vhigh
+
+	while (tnow<=(_num_steps*_exp_time)){
+		tcount(_exp_time)
+		wait(2)
+		getcounts
+		get_angles
+		tnow=time()-tzero
+		est_phi=A[$1]
+		on(_METAFILE); p sprintf("%5.4f %5.4f %5.4f %5.4f %5.4f %5.4f %5.4f",tnow,est_phi,S[cesr],S[ic1],S[ic2],S[sampleT],S[diode]); off(_METAFILE)
+	}
+#	closes					### USE PHOTO DIODE TO CHECK WITH MOTOR
+	vlow
+	waitmove
+
+
+
+#step 7:  return to original motor rates and position
+
+	get_angles
+	get_counts
+
+	motor_par(_motor, "velocity", 40000)	### RETURN TO ORIGINAL STEADY_STATE_RATE
+	motor_par(_motor, "acceleration", 500)
+	
+	eval(sprintf("umv %s %f",_motor,_end_sweep))
+
+#	if ( _flag>0 ){
+#		_tempnow = cryoget()
+#		_tempnow = cryoget()
+#		on(_METAFILE)
+#		p sprintf("#C %s Temperature= %g",date(),_tempnow)
+#		off(_METAFILE)
+#	}
+	eval(sprintf("fclose %s", _METAFILE))
+	
+#step 8:  6M cleanup stuff
+	_fixnumber=epics_get("PIL10:cam1:FileNumber")+_num_steps-1
+	epics_put("PIL10:cam1:FileNumber",_fixnumber)
+	epics_put("PIL10:cam1:TriggerMode",0) #set the mode to internal
+	ad_on
+}'
+
+

@@ -1,0 +1,4 @@
+def user_ct 'sleep(.2); pilatuscopylast'
+
+def user_scan_plot 'sleep(.2); pilatuscopylast'                                              
+

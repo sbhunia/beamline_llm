@@ -1,0 +1,215 @@
+#
+#
+#
+
+global MDCP_DEFAULT[]
+MDCP_DEFAULT[0] = "AUTO"
+MDCP_DEFAULT[1] = "MT-2.0,-2.0,-2.0,-2.0,-2.0,-2.0,-2.0,-2.0"
+MDCP_DEFAULT[2] = "CE4,4,4,4,4,4,4,4"
+MDCP_DEFAULT[3] = "OE0,0,0,0,0,0,0,0"
+MDCP_DEFAULT[4] = "CN1,-1,-1,0,0"
+MDCP_DEFAULT[5] = "TM1000"
+MDCP_DEFAULT[6] = "CW1"
+MDCP_DEFAULT[7] = "IK1"
+MDCP_DEFAULT[8] = "EO1"
+MDCP_DEFAULT[9] = "SH"
+MDCP_DEFAULT[10] = "EN"
+MDCP_DEFAULT[11] = "\"Must issue BP after loading\""
+MDCP_DEFAULT[12] = ""
+MDCP_DEFAULT[13] = "\032:"
+
+def motor_list '{
+    local i dir mne unit ch ip cmd filenanme
+
+    dir = CWD
+    filename = sprintf("motors_%s.csv",date("%m%d%Y_%H%M"))
+    eval("cd ~")
+    fprintf(filename,"\nmnemonic,ip,unit,channel")
+    for (i in A){
+        mne = motor_mne(i)
+        ip = motor_par(i,"device_id")
+        split(ip,address,":")
+        ip = address[0]
+        unit = motor_par(i,"unit")
+        ch = motor_par(i,"channel")
+        fprintf(filename,"\n%s,%s,%s,%s",mne,ip,unit,ch)
+        if($1){
+            p "mne: " mne "   IP: " ip "   unit/ch: " unit "/" ch
+        }
+    }
+    printf("\nmotor listed printed to ~/%s\n\n",filename)
+    eval(sprintf("cd %s",dir))
+}'
+
+def motor_diag '{
+    local motor_text[] motor_info[] address[]
+    local vel conv lash i mot skip
+
+    if(!$#){
+        p "usage: motor_diag motor_mne"
+        exit
+    }
+
+    mot = motor_mne($1)
+
+    # check if motor exists && special case of motor 0 in list
+    if(mot == motor_mne(0) && mot != "$1"){
+        p "motor does not exist!"
+        exit
+    }
+    
+    motor_info[i] = "device_id"
+    motor_text[i++] = "MDCP: "
+    
+    motor_info[i] = "unit"
+    motor_text[i++] = "unit: "
+    
+    motor_info[i] = "channel"
+    motor_text[i++] = "channel: "
+
+    motor_info[i] = "controller"
+    motor_text[i++] = "motor type: "
+
+    motor_info[i] = "step_size"
+    motor_text[i++] = "conversion (steps/mm): "
+
+    motor_info[i] = "encoder_step_size"
+    motor_text[i++] = "encoder (counts/mm): "
+
+    motor_info[i] = "velocity"
+    motor_text[i++] = "speed (hz): " 
+
+    motor_info[i] = "acceleration"
+    motor_text[i++] = "acc/dec (msec): "
+
+    motor_info[i] = "backlash"
+    motor_text[i++] = "lash (steps): "
+
+
+    #motor_par cmds
+    for (i in motor_info){
+        skip = 0
+        cmd = motor_par($1,sprintf("%s",motor_info[i]))
+
+        if(motor_info[i] == "step_size"){
+            conv = cmd
+        }
+        else if(motor_info[i] == "velocity"){
+            vel = cmd
+            vel /= conv
+            p "speed (mm|deg/s): " vel
+        }
+        else if(motor_info[i] == "backlash"){
+            lash = cmd
+            lash /= conv
+            p "lash (mm|deg): " lash
+        }
+        else if(motor_info[i] == "encoder_step_size"){
+            if (!cmd)
+                skip = 1
+        }
+        else if (motor_info[i] == "device_id"){
+            split(cmd,address,":")
+            cmd = address[0]
+        }
+
+            if(!skip)
+                p motor_text[i] cmd
+    }
+    #non motor_par cmds
+
+    local lower upper extra_info[] extra_text[] program[] prog_length
+    i=0
+    extra_info[i] = user($1,get_lim($1,1))
+    extra_text[i++] = "upper limit (mm|deg):"
+    
+    extra_info[i] = user($1,get_lim($1,-1))
+    extra_text[i++] = "lower limit (mm|deg):"
+
+    extra_info[i] = extra_info[i-2] - extra_info[i-1]
+    extra_text[i++] = "total travel (mm|deg):"
+
+    for (i in extra_info){
+        p extra_text[i] " " extra_info[i]
+    }
+
+    if(yesno("\nextended diagnosis?",0)){
+        local handles[] axis[]
+        axis = ["A","B","C","D","E","F","G","H"]
+
+        ### checks MDCP program
+        prog_length = split(motor_par($1,"uread","UL"),program,"\r\n")
+        for (i in program){
+            if(program[i] != MDCP_DEFAULT[i]){
+                p "\nMDCP has nonstandard programming!!!"
+                break
+            }
+        }
+        if(i == (prog_length-1))
+            p "\nMDCP has default program"
+        ###
+
+        ping $1 5
+
+        #### comm handles can be handle related, promopts users to clear handles if that may be the case
+        mdcp_tell_handles $1
+        for(i in axis){
+            handles[i] = motor_par($1,"uread",sprintf("MG _IH%s2",axis[i]))
+            if(handles[i] == 0)
+                break
+            else if(i == 7){
+                p "connection handles full..."
+                if(yesno("clear all conections?",0))
+                    mdcp_clear_handles $1
+            }
+        }
+        ###
+    }
+
+    if(yesno("\nload motor help documents?",1)){
+        #unix("evince")
+        unix("firefox https://wiki.classe.cornell.edu/bin/viewauth/CHESS/Operations/StandardOperatingProcedures")
+    }    
+}'
+
+def ping '{
+    local add[] mot len
+
+    if(!$#){
+        p "usage: ping motor_mne"
+        p "usage: ping xxx.xxx.xxx.xxx"
+        exit
+    }
+
+    p len = split(sprintf("%s",$1),add,".")
+
+    """
+    if(!len)
+        add[0] = $1
+    else{
+        mot = motor_mne($1)
+
+        if(mot == motor_mne(0)){
+            add[0] = $1
+        }
+        else
+            split(motor_par($1,"device_id"),add,":")
+    }
+
+    p "\npinging MDCP..."
+    if($2)
+        unix(sprintf("ping %s -c %i",add[0],$2))
+    else
+        unix(sprintf("ping %s",add[0]))
+    """
+}'
+
+def mdcp_tell_handles '{
+    p motor_par($1,"uread","TH")
+}'
+
+def mdcp_clear_handles '{
+    motor_par($1,"usend","IHT=>-3")
+    sleep(.1)
+    reconfig
+}'

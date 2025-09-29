@@ -1,0 +1,307 @@
+#
+# undulator.mac
+#
+# This is a group of macros that call functions in the motor controller
+# Revised by KMS 3/8/22
+# added und_reset sequence for ease of use
+#
+
+global UND_MNEMONIC
+global UND_CH
+global UND2_MNEMONIC
+global UND2_CH
+# set global constants
+
+#assigns the global based on its existence in the motor list
+if(und)
+	UND_MNEMONIC = "und"	#all stations except 4b use "und"
+else
+	UND_MNEMONIC = "und_cl"
+
+UND2_MNEMONIC = "und2"	#2a is currently only station with 2 undulators configured
+UND_VAR_TIME_OUT = 120	#120 second time out for undulator subroutines to complete
+
+def _get_mdcp_channel_letter(motor_mnemonic) '{
+    local channel_number channel_letter
+
+    channel_number = motor_par(motor_mnemonic,"channel")  #grabs numeric channel for galil instructions to convert into alphabetical representation
+    if(channel_number == 0)
+        channel_letter = "A"
+    else if(channel_number == 1)
+        channel_letter = "B"
+    else if(channel_number == 2)
+        channel_letter = "C"
+    else if(channel_number == 3)
+        channel_letter = "D"
+    else if(channel_number == 4)
+        channel_letter = "E"
+    else if(channel_number == 5)
+        channel_letter = "F"
+    else if(channel_number == 6)
+        channel_letter = "G"
+    else if(channel_number == 7)
+        channel_letter = "H"
+    else{
+        p "motor " motor_mnemonic  "not found"
+        exit
+    }
+
+    return channel_letter
+}'
+
+def und_check '{
+	local undulator
+	if($1 == 2){
+		undulator = UND2_MNEMONIC
+		UND2_CH = _get_mdcp_channel_letter(undulator)	#assigns global channel letter
+	}
+	else{
+		undulator = UND_MNEMONIC
+		UND_CH = _get_mdcp_channel_letter(undulator)	#assigns global channel letter
+	}
+}'
+
+def _stop_code(motor,channel) '{
+	local out
+    out = motor_par(motor,"uread",sprintf("SC%s=?",channel))
+	return out
+}'
+
+def _motor_type(motor,channel) '{
+	local out
+    out = motor_par(motor,"uread",sprintf("MT%s=?",channel))
+	return out
+}'
+
+def _und_position(undulator,channel) '{
+	local undPosition
+	undPosition = motor_par(undulator,"uread",sprintf("DP%s=?",channel))
+	printf("motor position = %.3fmm", (undPosition/2000))
+	tty_cntl("ce")
+	printf("\r")
+	wait(1)
+}'
+
+def maxk '{
+	d
+	_maxk
+	if(und2){
+		_maxk 2	#park 2nd undulator if configured at station
+	}
+}'
+
+def _maxk '{
+	local lowerLim upperLim undMove undBack
+	local undulator cmd channel
+	und_check $1
+
+	if($1 == 2){
+		undulator = UND2_MNEMONIC
+	}
+	else{
+		undulator = UND_MNEMONIC
+	}
+
+	#calculate rev limit location user value
+	if (motor_par(undulator,"backlash") !=0)
+		undBack = motor_par(undulator,"backlash")/motor_par(undulator,"step_size")	#calculates backlash in mm
+	else 
+		undBack = 0
+	lowerLim = get_lim(motor_num(undulator),-1)
+	upperLim = get_lim(motor_num(undulator),1)
+	undMove = (lowerLim + undBack)	#calculates the dial position to the lower limit
+
+	#checks if the undulator lower limit is an acceptable max K value
+	if (fabs((upperLim - lowerLim)) < 12 ) {
+		p "\nCurrent undulator limits do not represent max K!"
+		p "Please correct the limits and attempt parking again"
+		p "Recommended dial soft limits (in mm):"
+		p "2A: -3.6 / 9.5"
+		p "2B: -3.2 / 9.7"
+		p "3A: -4.6 / 8.2"
+		p "3B: 0.2 / 13.1"
+		p "4A: -4.7 / 9.1"
+		p "4B: -3.4 / 9.7"
+		p "7A: -12.0 / 0.6"
+		p "7B: -0.8 / 12.3"
+		exit
+	}
+
+	#move to max k
+	#printf("\rMoving \'%s\' from dial %.4f mm to max K\n",undulator, dial(undulator,A[undulator]))
+	umvd undulator undMove	#update move dial
+	waitmove
+	wm undulator
+	if ((A[motor_num(undulator)] - user(motor_num(undulator),0)) == undMove)
+		p undulator " is now at max K!\n"
+	else
+		p undulator " did not successfully move to max K. Try again or seek help!"
+}'
+
+# index mark homing undulator
+def und_home '{
+	local undulator cmd channel
+	und_check $1
+	d
+	if($1 == 2){
+		undulator = UND2_MNEMONIC
+		channel = UND2_CH
+		cmd = "XQ#cLoop2"
+	}
+	else{
+		undulator = UND_MNEMONIC
+		channel = UND_CH
+		cmd = "XQ#cLoop"
+	}
+
+	printf("\rBeginning homing routine for undulator motor \'%s\'\n", undulator)
+
+	motor_par(motor_num(undulator),"usend",cmd)
+
+	outtime = time()
+	sleep(1)	#wait to allow controller to begin program
+	while (_und_position(undulator,channel) != 10){
+		#_und_position(undulator,channel)
+		if ((time() - outtime) > UND_VAR_TIME_OUT)
+			break
+		printf("Timeout in %i seconds, ", UND_VAR_TIME_OUT - (time() - outtime))
+	}
+	if (_und_position(undulator,channel) == 10) {
+		printf("\rIndex mark homing of undulator motor \'%s\' is complete.\n", undulator)
+		wm undulator
+	}
+	else {
+		printf("***Motor homing error! Verify undulator motor \'%s\' position is 0.\n***If not, attempt homing again.", undulator)
+		wm undulator
+	}
+}'
+
+# halts program exectution and stops all motors on undulator MDCP
+def und_stop '{
+	local undulator
+	und_check $1
+	if($1 == 2){
+		undulator = UND2_MNEMONIC
+	}
+	else{
+		undulator = UND_MNEMONIC
+	}
+
+	motor_par(motor_num(undulator),"usend","ST")
+	p "1)Stop command issued to controller"
+}'
+
+# turns undulator motor off
+def und_off '{
+	local undulator cmd
+	und_check $1
+	if($1 == 2){
+		undulator = UND2_MNEMONIC
+		cmd = sprintf("MO%s",UND2_CH)
+	}
+	else{
+		undulator = UND_MNEMONIC
+		cmd = sprintf("MO%s",UND_CH)
+	}
+
+	motor_par(motor_num(undulator),"usend",cmd)
+	p "2)Undulator is OFF"
+}'
+
+# enable motor
+def und_on '{
+	local undulator cmd
+	und_check $1
+	if($1 == 2){
+		undulator = UND2_MNEMONIC
+		cmd = sprintf("SH%s",UND2_CH)
+	}
+	else{
+		undulator = UND_MNEMONIC
+		cmd = sprintf("SH%s",UND_CH)
+	}
+
+	motor_par(motor_num(undulator),"usend",cmd)
+	p "3)Undulator is ON"
+}'	
+
+# runs closed loop motor subroutine
+def und_closed_loop '{
+	local undulator cmd channel motor_type
+	und_check $1
+	if($1 == 2){
+		undulator = UND2_MNEMONIC
+		channel = UND2_CH
+		cmd = "XQ#cLoop2"
+	}
+	else{
+		undulator = UND_MNEMONIC
+		channel = UND_CH
+		cmd = "XQ#cLoop"
+	}
+
+	motor_par(motor_num(undulator),"flush")
+	printf("\rBeginning closed loop routine for undulator motor \'%s\'\n", undulator)
+	printf("Motor will be homed during this procedure.\n")
+    motor_par(motor_num(undulator),"usend",cmd)
+	outtime = time()
+	sleep(1)	#wait to allow controller to begin program
+	while (1) {
+		_und_position(undulator,channel)
+		if ((time() - outtime) > UND_VAR_TIME_OUT){
+			p "undulator homing sequence timed out!"
+			p "seek help if a second attempt does not work!"
+			motor_par(motor_num(undulator),"usend","ST")
+			exit
+		}
+		printf("Timeout in %i seconds, ", UND_VAR_TIME_OUT - (time() - outtime))
+		sleep(1)
+		motor_type = fabs(_motor_type(undulator,channel))
+		if(motor_type == 12 || motor_type ==12.5)
+			break
+	}
+	printf("\n5)Closed loop configuration for undulator motor \'%s\' is complete!", undulator)
+	motor_par(motor_num(undulator),"flush")
+
+}'
+
+#runs open loop motor subroutine
+def und_open_loop '{
+	local undulator cmd channel
+	und_check $1
+	if($1 == 2){
+		undulator = UND2_MNEMONIC
+		channel = UND2_CH
+		cmd = "XQ#oLoop2"
+	}
+	else{
+		undulator = UND_MNEMONIC
+		channel = UND_CH
+		cmd = "XQ#oLoop"
+	}
+
+    motor_par(motor_num(undulator),"usend",cmd)
+	printf("4)Undulator motor \'%s\' configured for open loop\n", undulator)
+}'
+
+#macro for restarting the undulator channel if faulted
+def und_reset '{
+	d
+	und_stop $1
+	sleep(1)
+	und_off $1
+	sleep(1)
+	und_on $1
+	sleep(1)
+	und_open_loop $1
+	sleep(1)
+	und_closed_loop $1
+}'
+
+
+#undulator help routine for when the user doesn't remember available commands
+def und_ '{
+	p "valid usage for single undulator: und_reset"
+	p "valid usage if station has second undulator: und_reset 2"
+}'
+	

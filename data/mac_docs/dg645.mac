@@ -1,0 +1,43 @@
+
+
+global _sync_pulse_addr
+
+_sync_pulse_addr = "192.168.182.4:5025"
+
+def sync_pulse_comm(command) '{
+    local arr
+    sock_put(_sync_pulse_addr, sprintf("%s\r", command))
+    #sleep(.1)
+    #split(sock_get(_sync_pulse_addr), arr, "\r\n")
+    #return arr["0"]
+}'
+
+#
+def sync_dg645_delay(channel, reference, delay) '{
+    local cmd_string
+    # if ($# != 3) {
+	# 	p "Usage: sync_dg645_delay channel reference delay"
+	# 	exit
+	# }
+
+    query_string = sprintf("DLAY %d,%d,%g", channel, reference, delay)
+
+    cmd_string = sprintf("DLAY %d,%d,%g", channel, reference, delay)
+
+    sync_pulse_comm(cmd_string)
+}'
+
+def sync_dg645_prescale(channel,prescale) '{
+    local cmd_string
+    # if (($# != 1) || (int($1)!=$1) || ($1<1)) {
+	# 	p "Usage: sync_dg645_delay prescale (prescale must be a natural number)"
+	# 	exit
+	# }
+    cmd_string = sprintf("ADVT %d", 1)
+
+    sync_pulse_comm(cmd_string)
+
+    cmd_string = sprintf("PRES %d,%d", channel, prescale)
+
+    sync_pulse_comm(cmd_string)
+}'

@@ -1,0 +1,98 @@
+#def _cleanup2 'closes'
+
+
+def vbeamscan '
+
+	if ($# != 4) {
+		eprint "\
+Usage:  vbeamscan  rel_start rel_finish intervals time"
+		exit
+	}
+
+	d2scan monzd $1 $2 monzu $1 $2 $3 $4
+	
+'
+
+def newvbeam '
+
+	if ($# != 4) {
+		eprint "\
+Usage:  vbeamscan  rel_start rel_finish intervals time"
+		exit
+	}
+
+	d4scan monzd $1 $2 monzu $1 $2 wb_bot $1 $2 wb_top $1 $2 $3 $4
+	
+'
+
+def hbeamscan '
+
+	if ($# != 4) {
+		eprint "\
+Usage:  hbeamscan  rel_start rel_finish intervals time"
+		exit
+	}
+
+	d2scan monxd $1 $2 monxu $1 $2 $3 $4
+	
+'
+
+def newhbeam '
+
+	if ($# != 4) {
+		eprint "\
+Usage:  hbeamscan  rel_start rel_finish intervals time"
+		exit
+	}
+
+	d3scan monxd $1 $2 monxu $1 $2 hapx $1 $2 $3 $4
+	
+'
+
+def wmono 'wm monu mond monoff montrav mond_x monzu monzd monxu monxd'
+
+def wmonoall '
+wm monu mond monoff montrav mond_x monzu monzd monxu monxd
+wm muc cfilter monphi monchi 
+'
+
+def wmirror 'wm mird miru mirbd mirbu'
+
+def wot 'wm tabzd tabzui tabzuo tabxd tabxu taby'
+
+def ws1 'wm s1b s1t s1r s1l'
+
+def ws2 'wm s2b s2t s2r s2l'
+
+def wslits '
+ws1 
+ws2
+'
+
+def os1 'mmv s1t $1 s1b $1 s1l $2 s1r $2'
+def os2 'mmv s2t $1 s2b $1 s2l $2 s2r $2'
+
+def unkludgenu '
+mvd nu .65
+set nu 0
+'
+
+def tweakup '
+pil_off
+plotselect ic1
+lup mond -.02 .02 160 .1
+umv mond pl_xMAX
+#lup und_cl -1 1 160 .1
+lup und_cl -0.7 0.7 140 .1
+umv und_cl pl_xMAX
+'
+
+def w6m 'wm  pil6mx      pil6my      pil6mz '
+
+def park6m '
+umv pil6mx 118 pil6my 780 pil6mz -60
+'
+
+
+
+

@@ -1,0 +1,36 @@
+def stats '
+ { local scratch_exe , archive_path, _printer;
+   archive_path = ".proutput"
+   unix( sprintf( "rm %s" , archive_path ) );
+   open( archive_path );
+   opens
+   waitmove
+   on( archive_path ); offt; offd; offp;
+   com "Tune-up Data"
+   printf( "The data are stored in the file %s \n" , DATAFILE );
+   we
+   getE
+   ct
+   off( archive_path ); ont;
+   counters 1 2
+    {
+      d2scan xu -2 2 xd -2 2 40 .1
+    }
+   fprintf( archive_path , "d2scan # %d yields an x FWHM of %g.\n" , SCAN_N , pl_FWHM );
+    {
+      d3scan zld -0.2 0.2 zrd -0.2 0.2 zu -0.2 0.2 40 .1
+    }
+   fprintf( archive_path , "d3scan # %d yields a z FWHM of %g.\n" , SCAN_N , pl_FWHM );
+   waitmove
+   on( archive_path ); offt; offd;
+   com "Tune-up Data archiving complete"
+   ont; off( archive_path ); close( archive_path );
+   if( PROUT_Q == "" || PROUT_Q == "/dev/null" || PROUT_Q == "null")
+      _printer = ""
+   else
+      _printer = sprintf( "-P%s" , PROUT_Q );
+   unix( sprintf( "cat %s | lpr %s" , archive_path , _printer ) );
+   unix( sprintf( "cat %s >> %s/ScanStats/stat.dat" , archive_path, HOME ) );
+ }
+'
+

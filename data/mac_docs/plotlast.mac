@@ -1,0 +1,105 @@
+def plotlast '
+         close("cplot.tmp")
+         unix("rm -f cplot.tmp")
+         on("cplot.tmp"); offt
+         printf("zi psfilter @lpr\n")
+         printf("re\n")
+         printf("ft 2\n")
+         printf("sy L\n")
+	 printf("cs t 2 2\n")
+	 printf("cs l 3 2\n")
+	 printf("cs n 2 2\n")
+	 printf("cs s 2 1\n")
+	 printf("cs k 2 2\n")
+	 printf("cs d 3 2\n")
+         printf("tu 1\n")
+         printf("wi 2 -1.5 7 5\n")
+         printf("tx\n")
+          printf("File %s, %s\n",DATAFILE,T_L)
+          printf("%s\n",X_L)
+          printf("\n")
+          printf("%s\n","Counts")
+          printf("\n")
+
+         printf("zeqw\n")
+         printf("gd 1\n")
+         pts $*
+         printf("^D\n")
+
+         printf("zapltd\n")
+         printf("sy 0\n")
+         printf("zp\n")
+
+         printf("wi 9\n")
+         printf("zn 1 1\n")
+         printf("\\s%s\\l\n", HEADING);
+         printf("^D\n")
+
+	 printf("wi 2 -8.25 7 2\n")
+         printf("zn 0 0\n")
+         plot_defaults($#,"$1","$2","$3","$4")
+         printf("\\C%s\n", sdata_res_s1(@pl_a,pl_x,pl_y,pl_n,pl_type));
+         printf("\\C\\d%s\n", sdata_res_s2(@pl_a,pl_x,pl_y,pl_n,pl_type));
+
+         printf("^D\n")
+
+         printf("zs\n")
+         printf("ex\n")
+         ont; close("cplot.tmp")
+         unix("(/usr/local/cplot/bin/cplot cplot.tmp) >/dev/null 2>&1 &")
+'
+
+def logplotlast '
+         close("cplot.tmp")
+         unix("rm -f cplot.tmp")
+         on("cplot.tmp"); offt
+         printf("zi psfilter @lpr\n")
+         printf("re\n")
+         printf("ft 2\n")
+         printf("sy L\n")
+         printf("cs t 2 2\n")
+	 printf("cs l 3 2\n")
+	 printf("cs n 2 2\n")
+	 printf("cs s 2 1\n")
+	 printf("cs k 2 2\n")
+	 printf("cs d 3 2\n")
+         printf("tu 1\n")
+         printf("wi 2 -1.5 7 5\n")
+         printf("tx\n")
+          printf("File %s, %s\n",DATAFILE,T_L)
+          printf("%s\n",X_L)
+          printf("\n")
+          printf("%s\n","Counts")
+          printf("\n")
+
+         printf("zeqw\n")
+         printf("gd 1\n")
+         pts $*
+         printf("^D\n")
+
+         printf("ty 1 8 1\n")
+         printf("zapltd\n")
+         printf("sy 0\n")
+         printf("zp\n")
+
+         printf("wi 9\n")
+         printf("zn 1 1\n")
+         printf("\\s%s\\l\n", HEADING);
+         printf("^D\n")
+
+	 printf("wi 2 -8.25 7 2\n")
+         printf("zn 0 0\n")
+         plot_defaults($#,"$1","$2","$3","$4")
+         printf("\\C%s\n", sdata_res_s1(@pl_a,pl_x,pl_y,pl_n,pl_type));
+         printf("\\C\\d%s\n", sdata_res_s2(@pl_a,pl_x,pl_y,pl_n,pl_type));
+
+         printf("^D\n")
+
+         printf("zs\n")
+         printf("ex\n")
+         ont; close("cplot.tmp")
+         unix("(/usr/local/cplot/bin/cplot cplot.tmp) >/dev/null 2>&1 &")
+'
+
+
+

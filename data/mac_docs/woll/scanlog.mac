@@ -1,0 +1,42 @@
+# scanblog.mac  - Arthur Woll
+#
+# Make use of the df_print() facility in SPEC to automatically log certain comment lines
+# to a separate file. This file is envisioned as spanning a whole user experiment, 
+# such that it logs every scan performed in proper sequence. (But note that this sequence
+# can be built from the date stamps included in #D lines.) 
+#
+# It is further envisioned being invoked via a "newuserid" macro called by the station scientist.
+#
+
+def scanlog_on '{
+	SCANLOGFILE = $1
+	DFILE_HOW = "SCANLOG"
+}'
+
+def scanlog_off '{
+	close(SCANLOGFILE)
+	DFILE_HOW = 0 
+}'
+
+
+def df_print_SCANLOG(in_str) '{
+	# First: print output string to the datafile: this retains normal behavior
+	fprintf(DATAFILE, in_str)
+	
+	s_ind = index(in_str, "#S")
+	d_ind = index(in_str, "#D")
+	if (s_ind && d_ind) {
+		fprintf(SCANLOGFILE, "%s:%s", OUTFILES[DATAFILE]["path"], substr(in_str, s_ind, (d_ind-s_ind)))
+		fprintf(SCANLOGFILE, "%s:%s", OUTFILES[DATAFILE]["path"], substr(in_str, d_ind))
+	} else if (d_ind)
+		fprintf(SCANLOGFILE, "%s:%s", OUTFILES[DATAFILE]["path"], substr(in_str, d_ind))
+	else if (n = match(in_str, "#[CU]"))
+        fprintf(SCANLOGFILE, "%s:%s", OUTFILES[DATAFILE]["path"], substr(in_str, n))
+}'
+
+def df_array_SCANLOG(arr, fmt) '{
+	array_dump(DATAFILE, arr, fmt)
+	return	
+}'
+
+def df_flush_SCANLOG() '{}'
