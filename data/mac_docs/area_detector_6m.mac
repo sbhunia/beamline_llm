@@ -1,0 +1,394 @@
+# area_detector.mac
+#
+#   Macros for taking exposures though the EPICS areaDetector package.  The
+#   setup routine needs to know the PV prefix of the detector (this is the
+#   $(P) parameter in the st.cmd file.   The macros assume the normal plugins
+#   are loaded.   Individual type of detectors may need various teaks to
+#   the macros based on AD_MODEL.
+#
+
+global AD
+global AD_MODE
+string array AD_STR[256]
+
+#
+# Setup detector params
+#
+
+global AD_PARAM
+
+# Simulated detector params
+AD_PARAM["Basic simulator"]["min_exp"] = 0.001
+AD_PARAM["Basic simulator"]["max_exp"] = 100
+
+# Pilatus params
+AD_PARAM["Pilatus"]["min_exp"] = 10e-6
+AD_PARAM["Pilatus"]["max_exp"] = 10e6
+
+# GE DXR-250RT+ params
+AD_PARAM["DXR250RT+"]["min_exp"] = 0.15 # 0.135
+AD_PARAM["DXR250RT+"]["max_exp"] = 17
+
+# DC-152Q-C00-FI(ANDOR) params
+AD_PARAM["DC-152Q-C00-FI"]["min_exp"] = 26e-6
+AD_PARAM["DC-152Q-C00-FI"]["max_exp"] = 28e3
+
+
+#
+# Helper macros
+#
+
+def __ad_file_set(raw, scan) '{
+  local prefix num file
+
+  # Setup save filenames
+  prefix = sprintf("%s:%s", AD["prefix"], raw ? AD["raw_image"] : AD["image"]) 
+
+  num = split(DATAFILE, file, "/")
+
+  if(!scan) {
+    epics_put(sprintf("%s:FilePath", prefix), AD["path"])
+    epics_put(sprintf("%s:FileName", prefix), file[num - 1])
+    epics_put(sprintf("%s:FileNumber", prefix), AD["count"])
+    if(raw) {
+	epics_put(sprintf("%s:FileTemplate", prefix), "%s%s_%3.3d_raw.tiff")
+    } else {
+	epics_put(sprintf("%s:FileTemplate", prefix), "%s%s_%3.3d.tiff")
+    }
+  } else {
+    epics_put(sprintf("%s:FileName", prefix), \
+              sprintf("%s_scan%3.3d", file[num - 1], SCAN_N))
+    epics_put(sprintf("%s:FileNumber", prefix), 0)
+  }
+}'
+
+def __ad_check_mismatch() '{
+  local prefix cnt answer
+
+  prefix = sprintf("%s:%s", AD["prefix"], AD["image"])
+
+  cnt = epics_get(sprintf("%s:FileNumber_RBV", prefix))
+  if(cnt != AD["count"]) {
+    printf("Snapshot number does not match: Spec = %d, Detector = %d\n", \
+           AD["count"], cnt)
+    answer = yesno("Use Spec number", 1)
+
+    if(answer) {
+	epics_put(sprintf("%s:FileNumber", prefix), AD["count"])
+	if(AD["raw"]) {
+	    epics_put(sprintf("%s:%s:FileNumber", \
+	                      AD["prefix"], AD["raw_image"]), \
+	              AD["count"])
+	}
+    } else {
+	AD["count"] = cnt
+    }
+  }
+}'
+
+def _ad_user_newfile '{
+    if (whatis("AD")&0x01000000) {
+        AD["count"] = getval("Next Snapshot Number", AD["count"])
+        __ad_file_set(AD["raw"]?1:0, 0)
+    }
+}'
+# we cant remove this cdef during ad_off, or AD filenames dont get updated
+# when we run newfile:
+cdef("user_newfile", "_ad_user_newfile;", "_area_detector_hack_mac_")
+
+def _ad_cleanup '{
+    epics_put(sprintf("%s:cam1:Acquire", AD["prefix"]), "Done")
+}'
+
+def ad_unsetup '{
+    ad_off
+    cdef("", "", "_area_detector_hack_mac_", "delete")
+}'
+
+
+#
+# Basic macros
+#
+
+def ad_setup '{
+  local ok cnt
+
+  AD["prefix"] = getval("Detector EPICS PV prefix", AD["prefix"]);
+
+  AD["model"] = epics_get(sprintf("%s:cam1:Model_RBV", AD["prefix"]))
+  AD["status_pv"] = sprintf("%s:cam1:DetectorState_RBV", AD["prefix"])
+
+  ok = 0;
+  while(!ok) {
+	AD["path"] = getval("Remote path for images", AD["path"]);
+
+	AD_STR = epics_get(sprintf("%s:TIFF1:FilePath_RBV", AD["prefix"]),\
+			   "string")
+	epics_put(sprintf("%s:TIFF1:FilePath", AD["prefix"]), AD["path"])
+
+	sleep(1)
+	#if(epics_get(sprintf("%s:TIFF1:FilePathExists_RBV", AD["prefix"])) \
+	#   == "Yes") {
+		ok = 1;
+	#} else {
+	#	printf("\nPath %s does not exist!!!\n\n", AD["path"])
+	#}
+	epics_put(sprintf("%s:TIFF1:FilePath", AD["prefix"]), AD_STR)
+  }
+
+  # Add file name setting
+
+  AD["min_exp"] = AD_PARAM[AD["model"]]["min_exp"]
+  AD["max_exp"] = AD_PARAM[AD["model"]]["max_exp"]
+  AD["min"] = AD["min_exp"]
+  AD["max"] = AD["max_exp"]
+
+  AD["raw"] = 0
+  AD["image"] = "TIFF1"
+  AD["multiple_exposures"] = 0
+  AD["image_stream"] = 0
+
+  if(AD["model"] == "Pilatus") {
+	#AD["raw"] = 1
+	#AD["raw_image"] = "cam1"
+	AD["image"] = "cam1"
+  }
+
+  cnt = epics_get(sprintf("%s:%s:FileNumber_RBV", AD["prefix"], AD["image"]))
+  AD["count"] = getval("Next Snapshot Number", \
+                       (cnt > AD["count"] ? cnt : AD["count"]))
+
+  if(AD["model"] == "DXR250RT+" || AD["model"] == "DC-152Q-C00-FI") {
+    if(AD["model"] == "DC-152Q-C00-FI") {
+        epics_put(sprintf("%s:cam1:ImageMode", AD["prefix"]), "Fixed")
+    }
+
+    AD["image_stream"] = yesno("Fast image-streaming mode", AD["image_stream"])
+    if(AD["image_stream"]) {
+        ok = 0
+        while(!ok) {
+            cnt = getval("Enter minimum time for single image", AD["min_exp"])
+            if(cnt < AD["min_exp"]) {
+                eprint sprintf("Exposures must be at least %f", AD["min_exp"])
+            } else {
+                AD["min"] = cnt
+                ok = 1
+            }
+        }
+	if(AD["model"] == "DXR250RT+") {
+            epics_put(sprintf("%s:cam1:ImageMode", AD["prefix"]), "Multiple")
+        }
+    } else if(AD["model"] == "DXR250RT+") {
+        epics_put(sprintf("%s:cam1:ImageMode", AD["prefix"]), "Single")
+        AD["multiple_exposures"] = yesno("Always take multiple exposures for single images", AD["multiple_exposures"])	
+    }
+    ok = 0
+    while(!ok) {
+	cnt = getval("Enter maximum time for single exposure", AD["max_exp"])
+	if(cnt < AD["min_exp"] || cnt > AD["max_exp"]) {
+		eprint sprintf("Max exposure time must between %f and %f", \
+		               AD["min_exp"], AD["max_exp"])
+	} else {
+		AD["max"] = cnt 
+		ok = 1
+	}
+    }
+  }
+}'
+
+
+def ad_on '{
+  local prefix
+
+  prefix = sprintf("%s:%s", AD["prefix"], AD["image"]) 
+
+  if(AD_DISABLE) {
+	print "Lineup mode running -- cannot run"
+	exit
+  }	
+  AD_MODE = 1
+
+  # check for mismatched snapshot count
+  #__ad_check_mismatch()
+  AD["in_scan"] = 0
+
+  # Set file paths and names
+  __ad_file_set(AD["raw"]?1:0, 0)
+
+  # Turn on write to file
+  AD["old_callbacks"] = epics_get(sprintf("%s:cam1:ArrayCallbacks_RBV", \
+				  AD["prefix"]))
+  AD["old_enable"] = epics_get(sprintf("%s:EnableCallbacks_RBV",  prefix))
+  AD["old_writemode"] = epics_get(sprintf("%s:FileWriteMode_RBV", prefix))
+  AD["old_increment"] = epics_get(sprintf("%s:AutoIncrement_RBV", prefix))
+  AD["old_autosave"] = epics_get(sprintf("%s:AutoSave_RBV", prefix))
+
+  epics_put(sprintf("%s:cam1:ArrayCallbacks", AD["prefix"]), "Enable")
+  epics_put(sprintf("%s:EnableCallbacks", prefix), "Enable")
+  epics_put(sprintf("%s:FileWriteMode", prefix), "Single")
+  epics_put(sprintf("%s:AutoIncrement", prefix), "Yes")
+  epics_put(sprintf("%s:AutoSave", prefix), "Yes")
+
+  # Add chained macros 
+  cdef("", "", "_area_detector_mac_", "delete")
+
+  cdef("user_waitcount", "_ad_wait_idle; ", "_area_detector_mac_")
+  cdef("user_waitall", "_ad_wait_idle; ", "_area_detector_mac_")
+
+  cdef("user_Fheader", "_ad_Fheader; ", "_area_detector_mac_")
+  cdef("user_Pheader", "_ad_Pheader; ", "_area_detector_mac_")
+  cdef("user_postscan_head", "_ad_scan_head; ", "_area_detector_mac_")
+  cdef("user_scan_tail", "_ad_scan_tail; ", "_area_detector_mac_")
+  cdef("cleanup_always", "_ad_cleanup;", "_area_detector_mac_")
+
+  cdef("user_precount", "_ad_precount; ", "_area_detector_mac_", 0x10)
+}'
+
+
+def ad_off '{
+  local prefix
+
+  AD_MODE = 0
+
+  # restore file settings
+  prefix = sprintf("%s:%s", AD["prefix"], AD["image"])
+
+  epics_put(sprintf("%s:cam1:ArrayCallbacks", AD["prefix"]), \
+		    AD["old_callbacks"])
+  epics_put(sprintf("%s:EnableCallbacks", prefix), AD["old_enable"])
+  epics_put(sprintf("%s:FileWriteMode", prefix), AD["old_writemode"])
+  epics_put(sprintf("%s:AutoIncrement", prefix), AD["old_increment"])
+  epics_put(sprintf("%s:AutoSave", prefix), AD["old_autosave"])
+
+  # remove chained macros
+  cdef("", "", "_area_detector_mac_", "delete")
+}'
+
+
+#
+# private functions
+#
+
+def _ad_wait_idle '{
+   while(epics_get(AD["status_pv"]) != "Idle" && epics_get(AD["status_pv"]) != "Aborted" && epics_get(AD["status_pv"]) != "Error"){
+   	sleep(0.05)
+  }
+}'
+
+def _ad_wait_acquire '{
+  t = time()
+  while(epics_get(AD["status_pv"]) != "Acquire") {
+    sleep(0.0)
+  }
+}'
+
+
+def _ad_scan_head '{
+  local prefix
+
+  prefix = sprintf("%s:%s", AD["prefix"], AD["image"]) 
+
+  __ad_file_set(0, 1)
+  if(AD["raw"]) {
+	__ad_file_set(1, 1)
+  }
+
+  AD["in_scan"] = 1
+  cdef("cleanup_once", "_ad_scan_tail; ")
+}'
+
+def _ad_scan_tail '{
+  local prefix
+
+  prefix = sprintf("%s:%s", AD["prefix"], AD["image"]) 
+
+  _ad_wait_idle
+  AD["in_scan"] = 0
+
+  __ad_file_set(0, 0)
+  if(AD["raw"]) {
+	__ad_file_set(1, 1)
+  }
+}'
+
+def _ad_precount '{
+  local cnt_time n_exposures n_images
+
+  if(COUNT_TIME < AD["min_exp"]) {
+	eprintf("Incorrect exposure time.  Must be between %f and %f sec", \
+		AD["min_exp"], AD["max_exp"])
+	exit
+  }
+
+  if(AD["image_stream"]) {
+    # the following divides the total count time into a number of short
+    # exposure images
+    #  n_images = int(COUNT_TIME/AD["min"])
+    n_images = int(COUNT_TIME/AD["min"]+1)
+    cnt_time = AD["min"]
+
+    if(!AD["in_scan"]) {
+    #   __ad_check_mismatch()
+       AD["count"] = AD["count"]+n_images
+       __ad_file_set(AD["raw"]?1:0,0)
+    } else {
+       epics_put(sprintf("%s:%s:FileNumber", AD["prefix"], AD["image"]), NPTS)
+    }
+    _ad_wait_idle
+
+    epics_put(sprintf("%s:cam1:NumImages", AD["prefix"]), n_images)
+    epics_put(sprintf("%s:cam1:NumExposures", AD["prefix"]), 1)
+    epics_put(sprintf("%s:cam1:AcquireTime", AD["prefix"]), cnt_time)
+  } else {
+    cnt_time = COUNT_TIME
+
+    if(!AD["in_scan"]) {
+    #  __ad_check_mismatch()
+      AD["count"]++
+    }
+    _ad_wait_idle
+    epics_put(sprintf("%s:cam1:NumImages", AD["prefix"]), 1)
+  }
+
+  # the following breaks up a long exposure into several subexposures
+  # to avoid saturation, but produces one image:
+  n_exposures = _ad_get_num_exposures(cnt_time)
+  cnt_time = cnt_time/n_exposures
+
+  epics_put(sprintf("%s:cam1:NumExposures", AD["prefix"]), n_exposures)
+  epics_put(sprintf("%s:cam1:AcquireTime", AD["prefix"]), cnt_time)
+
+  if(AD["in_scan"]) {
+	epics_put(sprintf("%s:%s:FileNumber", AD["prefix"], AD["image"]), NPTS)
+  }
+
+  epics_put(sprintf("%s:cam1:Acquire", AD["prefix"]), "Acquire")
+  if(AD["model"] == "DXR250RT+") {
+	_ad_wait_acquire
+  }
+}'
+
+def _ad_get_num_exposures(cnt_time) '{
+  local max_t n_exposures
+
+  n_exposures = int(cnt_time/AD["max"]) + 1
+  if(AD["image_stream"]){
+    return n_exposures
+  }
+  # work around GE single exposure delay, by always n_exposures >=2:
+  if(AD["multiple_exposures"]) {
+      n_exposures = n_exposures==1? n_exposures+1:n_exposures
+  }
+  return n_exposures
+}'
+
+def _ad_Pheader '{
+    printf("\nusing %d image exposures per point", \
+        _ad_get_num_exposures(_ctime))
+}'
+
+def _ad_Fheader '{
+    printf("#C subexposures=%d (exposures per image)\n", \
+        _ad_get_num_exposures(_ctime))
+}'
+

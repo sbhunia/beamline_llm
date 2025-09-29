@@ -1,0 +1,30 @@
+### Macros to integrate the Lakeshore 336 controller with spec ###
+### JRuff, 2015
+
+T_LO_SP = 0
+T_HI_SP = 325
+
+epics_put("LAKESHORE1:DISABLE_0",0)
+epics_put("LAKESHORE1:DISABLE_1",0)
+
+def measuretemp '
+TEMP_SP=epics_get("LAKESHORE1:SETP_S1")
+TEMP_S=epics_get("LAKESHORE1:KRDG0")
+TEMP_R=epics_get("LAKESHORE1:KRDG1")
+DEGC_SP=TEMP_SP-273.15
+DEGC_S=TEMP_S-273.15
+DEGC_R=TEMP_R-273.15
+'
+
+def _settemp '
+epics_put("LAKESHORE1:SETP_S1",TEMP_SP)
+'
+
+def showtemp '
+measuretemp
+printf("     RadShield Temp = %gK  \n",TEMP_R,DEGC_R)
+printf("    Sample Setpoint = %gK  \n",TEMP_SP,DEGC_SP)
+printf("        Sample Temp = %gK  \n",TEMP_S,DEGC_S)
+'
+
+

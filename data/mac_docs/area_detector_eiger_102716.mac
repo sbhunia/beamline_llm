@@ -1,0 +1,506 @@
+# p1_extern.mac -- AW 2013 May 2nd: Got external triggering mode working reasonably well with 
+#                  counters. An improvement would be to put the counting into user_getcounts 
+# 
+# ad1_sandbox.mac -- AW 2012 Nov 7th. Setting up two Pilati to take fast sequences of images. Need
+#    external triggering to work as well as uniqueness...
+#
+# area_detector.mac
+#
+#   Macros for taking exposures though the EPICS areaDetector package.  The
+#   setup routine needs to know the PV prefix of the detector (this is the
+#   $(P) parameter in the st.cmd file.   The macros assume the normal plugins
+#   are loaded.   Individual type of detectors may need various teaks to
+#   the macros based on AD1_MODEL.
+#
+  
+global AD1 AD1_CDEF_LABEL AD1_SHORT_FNAME
+global AD1_POSTCOUNT_WAIT AD1_IN_SCAN
+
+AD1_CDEF_LABEL = "_ad1_mac_"
+AD1_POSTCOUNT_WAIT = 0.0001
+#AD1_OVERHEAD = .002
+AD1_OVERHEAD = .010
+
+AD1_IN_SCAN = 0
+
+# The following determines whehter or not the detector prefix, e.g. "PIL1" is included in  image filenames
+AD1_SHORT_FNAME = 0
+
+
+#if(!whatis("AD1_STR")) {
+  string array AD1_STR[8][256]
+#}
+
+
+global AD1_OLD_PATH
+global AD1_OLD_FILE
+global AD1_RAW_PATH
+global AD1_RAW_FILE
+
+global AD1_IMGN AD1_IMGN_0
+
+AD1_OLD_PATH = 0
+AD1_OLD_FILE = 3
+AD1_RAW_PATH = 4
+AD1_RAW_FILE = 7
+
+#
+# Setup detector params
+#
+
+global AD1_PARAM
+
+# Simulated detector params
+AD1_PARAM["Basic simulator"]["min_exp"] = 0.001
+AD1_PARAM["Basic simulator"]["max_exp"] = 100
+
+# Pilatus params
+AD1_PARAM["Pilatus"]["min_exp"] = 10e-6
+AD1_PARAM["Pilatus"]["max_exp"] = 10e6
+
+# Change the default order in which wait(2) and user_waitcount are called
+#  -- Compare to waitcount in SPECD/standard.mac
+# We dont want to poll the pilatus until AFTER spec counting is complete
+
+#def waitcount '{wait(2); user_waitcount; WAITING_COUNT = 0}'
+
+#
+# Helper macros
+#
+
+
+def __ad1_file_set(base, raw, scan) '{
+  local img_prefix, num, file, template, old_count
+
+  # Setup save filenames
+  img_prefix = sprintf("%s:%s", AD1["prefix"], raw ? AD1["raw_image"] : AD1["image"]) 
+  num = split(DATAFILE, file, "/")
+
+  if(!scan) {
+    AD1_STR[base + 0] = epics_get(sprintf("%s:FilePath_RBV", img_prefix), "string")
+    AD1_STR[base + 1] = epics_get(sprintf("%s:FileName_RBV", img_prefix), "string")
+    AD1_STR[base + 2] = epics_get(sprintf("%s:FWNamePattern_RBV", img_prefix), \
+					  "string")
+
+    if(raw) {
+	epics_put(sprintf("%s:FWNamePattern", img_prefix), "%s%s_raw.tiff")
+    } else {
+	epics_put(sprintf("%s:FWNamePattern", img_prefix), "%s%s_ct.tiff")
+    }
+
+  } else {
+    old_count = sprintf("%sold_count", raw ? "raw_" : "")
+
+    AD1_STR[base] = epics_get(sprintf("%s:FileName_RBV", img_prefix), "string")
+    AD1[old_count] = epics_get(sprintf("%s:FileNumber_RBV", img_prefix))
+
+    if(raw) {
+	epics_put(sprintf("%s:FWNamePattern", img_prefix), "%s%s_%4.4d_raw.tiff")
+    } else {
+	epics_put(sprintf("%s:FWNamePattern", img_prefix), "%s%s_%04d.tiff")
+    }
+
+    epics_put(sprintf("%s:FileNumber", img_prefix), 0)
+  }
+  epics_put(sprintf("%s:FilePath", img_prefix), AD1["path"])
+  if (AD1_SHORT_FNAME)
+	epics_put(sprintf("%s:FWNamePattern", img_prefix), \
+	      sprintf("%s_%s", file[num - 1], SCAN_N))
+  else
+	epics_put(sprintf("%s:FWNamePattern", img_prefix), \
+	    sprintf("%s_%03d", file[num - 1], SCAN_N))
+}'
+
+def __ad1_file_restore(base, raw, scan) '{
+  local img_prefix, old_count
+
+  # Restore filenames
+  img_prefix = sprintf("%s:%s", AD1["prefix"], raw ? AD1["raw_image"] : AD1["image"]) 
+
+  if(!scan) {
+    epics_put(sprintf("%s:FilePath", img_prefix), AD1_STR[base + 0])
+    epics_put(sprintf("%s:FileName", img_prefix), AD1_STR[base + 1])
+    epics_put(sprintf("%s:FWNamePattern", img_prefix), AD1_STR[base + 2])
+  } else {
+    old_count = sprintf("%sold_count", raw ? "raw_" : "")
+
+    epics_put(sprintf("%s:FileName", img_prefix), AD1_STR[base])
+    epics_put(sprintf("%s:FileNumber", img_prefix), AD1[old_count])
+  }
+}'
+
+
+#
+# Basic macros
+#
+
+def ad1_setup '{
+  local _interactive_
+
+  if ($# == 0) 
+	_interactive_ = 1
+  else if ($# == 2)
+	_interactive_ = 0
+  else {
+	eprint "Usage: ad1_setup [prefix path]"
+	exit
+  }
+ 
+  local path_ok;
+
+  if (_interactive_)
+	  AD1["prefix"] = getval("Detector EPICS PV prefix", AD1["prefix"]);
+  else
+	AD1["prefix"] = "$1"
+
+  img_prefix = AD1["prefix"] ":cam1"
+
+  path_ok = 0;
+  while(!path_ok) {
+	if (_interactive_) {
+		AD1["path_base"] = getval("Remote base path", AD1["path_base"]);
+		AD1["path_extn"] = getval(sprintf("Remote path extension for images (appended to %s)",\
+				 AD1["path_base"]), AD1["path_extn"]);
+		if (substr(AD1["path_base"], length(AD1["path_base"]), 1) != "/")
+	  		AD1["path"] = AD1["path_base"] "/" AD1["path_extn"]
+		else
+	  		AD1["path"] = AD1["path_base"] AD1["path_extn"]
+
+	} else {
+	    	AD1["path"] = "$2"
+	}
+
+
+	# CHECK 
+	AD1_STR[0] = epics_get(sprintf("%s:cam1:FilePath_RBV", AD1["prefix"]),\
+			      "string")
+	epics_put(sprintf("%s:FilePath", img_prefix), AD1["path"])
+
+	sleep(1)
+	if(epics_get(sprintf("%s:FilePathExists_RBV", img_prefix)) \
+	   == "Yes") {
+		path_ok = 1;
+	} else {
+		printf("\nPath %s does not exist!!!\n\n", AD1["path"])
+	        if (_interactive_ == 0) {
+			eprint "Aborting -- ad1 NOT set up!"
+			exit
+		}	
+	}
+	epics_put(sprintf("%s:FilePath", img_prefix), AD1_STR[0])
+  }
+
+  AD1["model"] = epics_get(sprintf("%s:cam1:Model_RBV", AD1["prefix"]))
+
+  AD1["min_exp"] = AD1_PARAM[AD1["model"]]["min_exp"]
+  AD1["max_exp"] = AD1_PARAM[AD1["model"]]["max_exp"]
+
+  AD1["status_pv"] = AD1["prefix"] ":cam1:DetectorState_RBV"
+
+  AD1["raw"] = 0
+  AD1["image"] = "cam1"
+
+  if(AD1["model"] == "Pilatus") {
+	#AD1["raw"] = 1
+	AD1["raw"] = 0
+	AD1["raw_image"] = "cam1"
+	AD1["image"] = "cam1"
+  }
+  #epics_put(sprintf("%s:Stats1:EnableCallbacks", AD1["prefix"]), "Enable")
+  #epics_put(sprintf("%s:ROI1:EnableCallbacks", AD1["prefix"]), "Enable")
+
+
+}'
+
+def ad1_on '{
+  local prefix
+
+  img_prefix = sprintf("%s:%s", AD1["prefix"], AD1["image"]) 
+
+  # Alter file paths and namea
+  __ad1_file_set(AD1_OLD_PATH, 0, 0)
+  if(AD1["raw"]) {
+	__ad1_file_set(AD1_RAW_PATH, 1, 0)
+  }
+
+  # force to single images
+  AD1["old_mode"] = epics_get(sprintf("%s:ImageMode", img_prefix))
+  AD1["old_images"] = epics_get(sprintf("%s:NumImages", img_prefix))
+  
+  # Turn on write to file
+  AD1["old_callbacks"] = epics_get(sprintf("%s:ArrayCallbacks_RBV", \
+				  img_prefix))
+
+  epics_put(sprintf("%s:ArrayCallbacks", img_prefix), "Enable")
+  epics_put(sprintf("%s:SaveFiles", img_prefix), "1")
+  epics_put(sprintf("%s:FWAutoRemove", img_prefix), "1")
+  
+  # Add chained macros 
+  cdef("", "", AD1_CDEF_LABEL, "delete")
+  cdef("user_postscan_head", "_ad1_scan_head; ", AD1_CDEF_LABEL)
+  cdef("user_postcount", "_ad1_postcount; ", AD1_CDEF_LABEL)
+  cdef("user_scan_tail", "_ad1_scan_tail; ", AD1_CDEF_LABEL)
+  cdef("user_precount", "_ad1_precount; ", AD1_CDEF_LABEL)
+
+}'
+
+
+def ad1_off '{
+  # restore file settings
+  img_prefix = sprintf("%s:%s", AD1["prefix"], AD1["image"]) 
+
+#  __ad1_file_restore(AD1_OLD_PATH, 0, 0)
+#  if(AD1["raw"]) {
+#	__ad1_file_restore(AD1_RAW_PATH, 1, 0)
+#  }
+
+  epics_put(sprintf("%s:ArrayCallbacks", img_prefix), \
+		    AD1["old_callbacks"])
+  epics_put(sprintf("%s:ImageMode", img_prefix), AD1["old_mode"])
+  epics_put(sprintf("%s:NumImages", img_prefix), AD1["old_images"])
+
+  # remove chained macros
+  cdef("", "", AD1_CDEF_LABEL, "delete")
+  # Turn off write to file
+  epics_put(sprintf("%s:SaveFiles", img_prefix), "0")
+}'
+
+
+#
+# private functions
+#
+
+def _ad1_wait_armed '{
+  local detstat
+  img_prefix = sprintf("%s:%s", AD1["prefix"], AD1["image"])
+  while((detstat = epics_get(sprintf("%s:Armed", img_prefix))) != "Armed") {
+	if ((detstat == "Aborted") || (detstat == "Error"))
+		break
+	sleep(0.01)
+  }
+}'
+
+def _ad1_wait_idle '{
+  local detstat
+  while((detstat = epics_get(AD1["status_pv"])) != "Idle") {
+	if ((detstat == "Aborted") || (detstat == "Error"))
+		break
+	sleep(0.01)
+  }
+}'
+
+def _ad1_waitcount '{
+    local ctr
+    ctr = 0
+
+   #p "_ad1_waitcount: , AD1_IMGN_0 = " AD1_IMGN_0 ", AD1_IMGN = ", AD1_IMGN
+   # PB changed %s:Stats1:ArrayCounter_RBV (not present on the Eiger IOC) to %s:cam1:ArrayCounter_RBV
+     while(AD1_IMGN_0 == (AD1_IMGN=epics_get(sprintf("%s:cam1:ArrayCounter_RBV", AD1["prefix"]), "float"))) {
+       	# PB changed 10 to 2000 on next line in an attempt to fix the first-trigger-missed issue
+	if (ctr>2000){
+             print "In _ad1_waitcount: Tired of waiting -- proceed"
+	     break
+	}
+        sleep(.001)
+        ctr++
+     }
+     AD1_IMGN_0 = AD1_IMGN
+}'
+
+def _ad1_precount '{
+	if (AD1_IN_SCAN == 0)
+		_ad1_single_shot
+}'
+
+def _ad1_postcount '{
+	sleep(AD1_POSTCOUNT_WAIT)
+	if (AD1_IN_SCAN == 0)
+		cdef("", "", "_ad1_count_", "delete")
+}'
+
+def _ad1_count_cleanup '{
+	_ad1_halt
+	AD1_IN_SCAN = 0
+	cdef("", "", "_ad1_count_", "delete")
+}'
+
+
+#	p epics_get(AD1["status_pv"])
+def _ad1_wait_acquire '{
+  while(epics_get(AD1["status_pv"]) != "Acquire") { 
+  	sleep(.1)
+  }
+}'
+
+
+def _ad1_single_shot '{
+
+ local img_prefix
+ p "Begin _ad1_single_shot"
+
+  img_prefix = sprintf("%s:%s", AD1["prefix"], AD1["image"]) 
+
+  __ad1_file_set(AD1_OLD_FILE, 0, 0)
+  if(AD1["raw"]) {
+	__ad1_file_set(AD1_RAW_FILE, 1, 0)
+  }
+
+  if (epics_get(AD1["status_pv"]) == "Acquire"){
+		_ad1_halt
+	}
+
+  _ad1_wait_idle
+
+  print "DetectorState_RBV = " epics_get(AD1["status_pv"])
+  print "Acquire_RBV = " epics_get(sprintf("%s:Acquire_RBV", img_prefix))
+
+  AD1_IN_SCAN = 0
+  cdef("user_waitcount", "_ad1_waitcount; ", "_ad1_count_")
+  cdef("cleanup_once", "_ad1_count_cleanup;", "_ad1_count_")
+
+	
+# Uncomment these and see below for multi-trigger  
+  epics_put(sprintf("%s:TriggerMode", img_prefix),"Internal Series" )
+  epics_put(sprintf("%s:ImageMode", img_prefix), "Single")
+  epics_put(sprintf("%s:AcquireTime", img_prefix ), COUNT_TIME)
+  epics_put(sprintf("%s:AcquirePeriod", img_prefix ), COUNT_TIME + AD1_OVERHEAD)
+  epics_put(sprintf("%s:NumTriggers",  img_prefix), 1)
+  epics_put(sprintf("%s:NumImages",  img_prefix), 1)
+
+
+  ad1_prout
+
+  
+
+  epics_put(sprintf("%s:Acquire", img_prefix), "Acquire")
+    _ad1_wait_armed
+    _ad1_wait_acquire
+    
+    AD1_IMGN_0 = epics_get(sprintf("%s:image1:ArrayCounter_RBV", AD1["prefix"]), "float")
+    AD1_IMGN = AD1_IMGN_0
+}'
+
+def _ad1_halt '{
+	epics_put(sprintf("%s:%s:Acquire", AD1["prefix"], AD1["image"]), "Done")
+}'
+
+def _ad1_scan_head '{
+  local img_prefix halt_acquire
+
+#  p "Begin _ad1_scan_head"
+
+# Not sure if the following does anything
+  waitmove
+  img_prefix = sprintf("%s:%s", AD1["prefix"], AD1["image"]) 
+
+  __ad1_file_set(AD1_OLD_FILE, 0, 1)
+  if(AD1["raw"]) {
+	__ad1_file_set(AD1_RAW_FILE, 1, 1)
+  }
+
+  if (epics_get(AD1["status_pv"]) == "Acquire"){
+		_ad1_halt
+	}
+  
+  _ad1_wait_idle
+
+  AD1_IN_SCAN = 1
+  cdef("user_waitcount", "_ad1_waitcount; ", "_ad1_count_")
+  cdef("cleanup_once", "_ad1_count_cleanup;", "_ad1_count_")
+
+
+# Uncomment these and see below for multi-trigger  
+  epics_put(sprintf("%s:TriggerMode", img_prefix),"Internal Series" )
+  epics_put(sprintf("%s:ImageMode", img_prefix), "Single")
+  epics_put(sprintf("%s:AcquireTime", img_prefix ), _ctime)
+  epics_put(sprintf("%s:AcquirePeriod", img_prefix ), _ctime + AD1_OVERHEAD)
+
+
+
+  epics_put(sprintf("%s:ArrayCallbacks", img_prefix), "Enable")
+  epics_put(sprintf("%s:NumImages",  img_prefix), _n1)
+  epics_put(sprintf("%s:NumTriggers",  img_prefix), _n1)
+
+  ad1_prout
+
+  AD1_IMGN_0 = epics_get(sprintf("%s:ArrayCounter_RBV", img_prefix), "float")
+
+  epics_put(sprintf("%s:Acquire", img_prefix), "Acquire")
+  
+  _ad1_wait_armed
+  
+  #if (_n1 > 1) {
+    # print "Multiple Images: About to wait for array counter to increment"
+  #  while(AD1_IMGN_0 == (AD1_IMGN=epics_get(sprintf("%s:ArrayCounter_RBV", img_prefix), "float"))) 
+  #    sleep(.1)
+  #   _ad1_wait_acquire
+  #} else {
+  #  # print "Single Image: About to wait for Collecting/Acquire Status"
+  #  _ad1_wait_acquire
+  #}
+    #AD1_IMGN_0 = epics_get(sprintf("%s:image1:ArrayCounter_RBV", AD1["prefix"]), "float")
+    #AD1_IMGN = AD1_IMGN_0
+}'
+
+def _ad1_scan_tail '{
+  img_prefix = sprintf("%s:%s", AD1["prefix"], AD1["image"])
+  AD1_IN_SCAN = 0
+  AD1_IMGN = epics_get(sprintf("%s:ArrayCounter_RBV", img_prefix), "float")
+
+  #while ((AD1_IMGN - AD1_IMGN_0) != epics_get(sprintf("%s:NumTriggers_RBV", img_prefix), "float")){
+   #   sleep(0.1)
+   #   AD1_IMGN = epics_get(sprintf("%s:ArrayCounter_RBV", img_prefix), "float")
+  #}
+
+  #removed while loop above, now passive error - ZB 102816
+  sleep(0.5)
+
+  epics_put(sprintf("%s:cam1:Acquire", AD1["prefix"]), 0)
+
+  sleep(1)
+
+  AD1_IMG_COMPLETE = epics_get(sprintf("%s:NumImages_RBV", img_prefix), "float")
+  AD1_IMG_TRIGGER = epics_get(sprintf("%s:NumTriggers_RBV", img_prefix), "float")
+
+  if (AD1_IMG_COMPLETE != AD1_IMG_TRIGGER){
+    print("***ERROR: Possible missing triggers, check number of images saved to directory\n***")
+  }
+
+  cdef("", "", "_ad1_count_", "delete")
+
+}'
+
+#
+#ad1_prout: sub gathers parameter values from epics
+#	   prints in SPEC console
+#Created: 03/30/12 - ZB	
+
+def ad1_prout '{
+  printf("File Path: %s\n", epics_get(sprintf("%s:cam1:FilePath_RBV", \
+	AD1["prefix"]),"string"))
+  
+  printf("File Name: %s\n", epics_get(sprintf("%s:cam1:FileName_RBV", \
+	AD1["prefix"]), "string"))
+  # printf("Acquire Time: %f\n", epics_get(sprintf("%s:cam1:AcquireTime_RBV", AD1["prefix"]), "float"))
+  printf("Energy Threshold: %f\n", epics_get(sprintf("%s:cam1:ThresholdEnergy_RBV",\
+   AD1["prefix"]), "float"))
+}'
+
+
+def ad1_von '{
+    local frame_time
+	if ($#>0) {
+	   frame_time = $1
+	} else {
+	   frame_time = 1
+	}	
+	  
+	epics_put(sprintf("%s:cam1:TriggerMode", AD1["prefix"]),"Alignment" )
+	epics_put(sprintf("%s:cam1:AcquireTime", AD1["prefix"] ), frame_time)
+	epics_put(sprintf("%s:cam1:AcquirePeriod", AD1["prefix"] ), frame_time + .006)
+	epics_put(sprintf("%s:cam1:Acquire", AD1["prefix"]), "Acquire")
+}'
+
+def ad1_voff '{
+	epics_put(sprintf("%s:cam1:Acquire", AD1["prefix"]), "Done")
+}'

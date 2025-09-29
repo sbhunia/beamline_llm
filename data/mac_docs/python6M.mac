@@ -1,0 +1,55 @@
+global _pilpath
+
+def showpil_setpath '
+_pilpath="$1"
+'
+
+def showpil '
+if ($# != 1) {
+_name1=epics_get("PIL10:cam1:FileName_RBV", "string")
+_name2=epics_get("PIL10:cam1:FileNumber_RBV")-1
+eval(sprintf("u python /mnt/home/chess_id4b/PythonPilatus/show6M.py %s%s_%3.3d.tiff &",_pilpath,_name1,_name2))
+}
+
+if ($# == 1) {eval(sprintf("u python /mnt/home/chess_id4b/PythonPilatus/show6M.py %s%s.tiff &",_pilpath,"$1"))}
+
+'
+
+def viewpilatus_on 'qdo /mnt/home/chess_id4b/Macros/pilvieweron.mac'
+def viewpilatus_off 'qdo /mnt/home/chess_id4b/Macros/pilvieweroff.mac'
+
+def pilatuscopylast '
+_name1=epics_get("PIL10:cam1:FileName_RBV", "string")
+_name2=epics_get("PIL10:cam1:FileNumber_RBV")-1
+eval(sprintf("u cp %s%s_%3.3d.tiff ./lastshot.tiff",_pilpath,_name1,_name2))
+'
+
+def getroi '
+_prxmin=epics_get("PIL10:ROI1:MinX")
+_prymin=epics_get("PIL10:ROI1:MinY")
+_prxsize=epics_get("PIL10:ROI1:SizeX")
+_prysize=epics_get("PIL10:ROI1:SizeY")
+
+p "Xmin="_prxmin
+p "Ymin="_prymin
+p "Xsize="_prxsize
+p "Ysize="_prysize
+
+'
+
+def setroi '
+epics_put("PIL10:ROI1:MinX",$1)
+epics_put("PIL10:ROI1:MinY",$2)
+epics_put("PIL10:ROI1:SizeX",$3)
+epics_put("PIL10:ROI1:SizeY",$4)
+
+sleep(.1)
+getroi
+
+'
+
+
+
+
+printf("\nUse showpil_setpath to tell plotting routines where to find the pilatus files\nRun pilatuslive.py from a terminal to start the live viewer\nHave fun\n\n")
+

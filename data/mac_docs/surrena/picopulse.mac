@@ -1,0 +1,538 @@
+#
+# picopulse.mac
+# revised 10/24/22 KMS
+#
+# this macro programs the pi pico for pulse generations
+# input pulses are programmable 
+#
+
+global PICO_GEN_ADDR
+global PICO_REGIONS
+global PICO_PULSE_LENGTH_ON[]
+global PICO_PULSE_LENGTH_OFF[]
+global PICO_PULSE_LENGTH_LAST[]
+global PICO_PULSE_COUNT[]
+global PICO_DEBOUNCE
+global PICO_INPUT_ACTIVE
+global PICO_OUTPUT_ACTIVE
+global PICO_BACKFORTH
+global PICO_REVERSE
+global PICO_FIXED
+global BYPASS_ARGS
+global FLYSCAN_ARGS
+global PICO_DEBUG
+global PICO_MODE
+
+PICO_DEBUG = 0
+PICO_GEN_ADDR = -1   #needs to be modified based on serial configs at the station!
+BYPASS_ARGS = 9
+FLYSCAN_ARGS = 4
+PICO_PULSE_LENGTH_ON[0] = 0
+PICO_PULSE_LENGTH_OFF[0] = 0
+PICO_PULSE_COUNT[0] = 0
+
+def pico '_pico_usage'
+def pico_ '_pico_usage'
+
+def pico_arm '{
+    pico_enable $*
+}'
+
+def pico_disarm '{
+    pico_disable $*
+}'
+
+def pico_repeat '{
+    if ($# == 1){
+        pico_mode_select 1 $*
+    }
+    else{
+        _pico_usage
+    }
+}'
+
+"""
+def pico_burst '{
+    if ($# == 2 || $# == 3){
+        pico_mode_select 7 $*
+    }
+    else{
+        _pico_usage
+    }
+}'
+"""
+
+
+def pico_enable '{
+    if(_pico_print("mode",1)){
+        ser_put(PICO_GEN_ADDR,"<disable>")
+        ser_put(PICO_GEN_ADDR,"<enable>")
+        if($1)
+            p "***PULSE GEN ENABLED***"
+    }
+    else{
+        p "Pico must be configured before use..."
+    }
+}'
+
+def pico_disable '{
+    ser_put(PICO_GEN_ADDR,"<disable>")
+    if($1)
+            p "***PULSE GEN DISABLED***"
+}'
+
+def pico_reverse(echo) '{
+    ser_put(PICO_GEN_ADDR,"<reverse>") #reverses pico array direction
+    if($1)
+        p "Pulse region array reversed"
+}'
+
+def pico_debug '{
+    ser_put(PICO_GEN_ADDR,"<debug>")    #toggles debug mode
+    PICO_DEBUG = !PICO_DEBUG
+}'
+
+def pico_reboot '{
+    ser_put(PICO_GEN_ADDR,"<reboot>")
+    p "mount and load new uf2 on pi pico..."
+}'
+
+def _pico_usage '{
+    if(ser_par(PICO_GEN_ADDR,"responsive") != -1){
+        p "Macros for programming:"
+        p "     pico_repeat length_sec"
+        #p "     pico_burst length_sec pulse_num"
+        #p "     pico_burst length_sec length_sec_off pulse_num"
+        p "Macros for control"
+        p "     pico_arm"
+        p "     pico_disarm"
+        #p "     pico_reverse"
+        p "Macros for basic DIO control"
+        p "     pico_set 1/2"
+        p "     pico_clr 1/2"
+        p "\nCurrent programming:\n"
+        _pico_print_basic(1)
+    }
+    else{
+        p "No communication to pico!"
+        p "Troubleshooting:"
+        p "     -check if pico is visible in /dev/serial/by-id/"
+        p "     -check that PICO_GEN_ADDR number matches serial number in config file"
+        p "     -disconnect usb hub cable at station computer"       
+    }
+}'
+
+def pico_set '{
+    local pico_tx
+
+    if($# != 1){
+        p "usage: pico_set 1/2"
+        #p "usage: pico_set 0/1/2"
+        exit
+    }
+    else if($1 == 1){
+        pico_tx = "<sb1>"
+    }
+    else if($1 == 2){
+        pico_tx = "<sb2>"
+    }
+    else{
+        #p "invalid bit, choose 0/1/2..."
+        p "invalid bit, choose 1/2..."
+        exit
+    }
+
+    ser_put(PICO_GEN_ADDR,pico_tx)
+}'
+
+def pico_clr '{
+    local pico_tx
+
+    if($# != 1){
+        #p "usage: pico_clr 0/1/2"
+        p "usage: pico_clr 1/2"
+        exit
+    }
+    else if($1 == 1){
+        pico_tx = "<cb1>"
+    }
+    else if($1 == 2){
+        pico_tx = "<cb2>"
+    }
+    else{
+        #p "invalid bit, choose 0/1/2..."
+        p "invalid bit, choose 1/2..."
+        exit
+    }
+    
+    ser_put(PICO_GEN_ADDR,pico_tx)
+}'
+
+#macro for updating the pico with new parameters
+#if values are known they can be passed as args to the macro
+#otherwise the macro is ui guided
+def pico_mode_select '{
+
+    local max_modes pico_mode pico_tx[] tx mode_args[] mode_usage[] pico_q_string[] pico_temp pico_temp2[] pico_temp3[] pico_regions pico_i
+       
+    pico_modes = 8
+
+    if($1 == 0){
+        p "Available pico modes"
+        p "1) flyscan mcs sync (delay generator)"
+        p "2) energy flyscan pulsed output (flyEscan)"
+        #p "3) time based pulsed output with input debounce"
+        #p "4) count based pulsed output with input debounce"
+        #p "5) multi-region time based pulsed output with input debounce"
+        #p "6) multi-region count based pulsed output with input debounce"
+        p "7) input output test mode"
+
+        while(pico_mode < 1 || pico_mode > pico_modes){
+            pico_mode = getval("Configure pico_repeat for which mode?", "")
+        }
+    }
+    else{
+        pico_mode = $1
+    }
+
+    pico_tx[tx++] = sprintf("<mode,%i>",pico_mode)
+
+    if(pico_mode == 1){
+        if($2 >= 1e-8 && $2 <= 7){
+            pico_temp = $2
+        }
+        else{
+            p "invalid pulse length of " $2
+            p "pulse length must be between 10nsec and 7sec"
+            #pico_temp = _ql("Output pulse LENGTH (sec)?",0,7)
+        }
+
+        pico_temp = 1e6 * pico_temp * 270 - 2 #user_us * 270MHz - 2 base cycles pio code
+        pico_tx[tx++] = _pico_build_msg("regions",1,1) 
+        pico_tx[tx++] = _pico_build_msg("length",pico_temp,1) 
+        pico_tx[tx++] = _pico_build_msg("input_high","",0)
+        pico_tx[tx++] = _pico_build_msg("output_high","",0)
+
+        _pico_send(pico_tx,tx)
+        PICO_DEBUG ? _pico_print_basic(1) : 0    #debug print
+    }
+    else if (pico_mode == 7){
+        pico_tx[tx++] = _pico_build_msg("regions",1,1) 
+        pico_tx[tx++] = _pico_build_msg("length",$2,1)
+        if($# == 4){
+            pico_tx[tx++] = _pico_build_msg("length_off",$3,1)
+            pico_tx[tx++] = _pico_build_msg("count",$4,1)
+        }
+        else{
+            pico_tx[tx++] = _pico_build_msg("length_off",$2,1)
+            pico_tx[tx++] = _pico_build_msg("count",$3,1)
+        } 
+        pico_tx[tx++] = _pico_build_msg("input_high","",0)
+        pico_tx[tx++] = _pico_build_msg("output_high","",0)
+        _pico_send(pico_tx,tx)
+        PICO_DEBUG ? _pico_print_basic(1) : 0    #debug print
+    }
+    else if(pico_mode == 666){
+        pico_tx[0] = "<mode,666>"
+        _pico_send(pico_tx,1)
+        p "***Entering I/O test mode***"
+        p "Use a BNC cable to connect and input to an output"
+        p "The green LED will light if the combination of I/O works"
+        p "Only test one group of I/O at a time!"
+        p "Test mode will be disabled upon reprogramming the pico"
+    }
+    else{
+        p "Unexpected mode choice " pico_mode
+        exit
+    }
+    """
+    else if(pico_mode == 2){
+        pico_regions = _ql("How many different regions?",1,100)  #arbitrary upper limit
+        for(pico_i = 0; pico_i < pico_regions; pico_i++){
+            p "For region " (pico_i + 1)
+            pico_temp[pico_i] = _ql("Total number of output pulses?",0,0xFFFFFFFF)
+            pico_temp2[pico_i] = _ql("Input pulse quantity per ON output?",0,0xFFFFFFFF)
+            pico_temp3[pico_i] = _ql("Input pulse quantity per OFF output?",0,0xFFFFFFFF)
+            
+        }
+        pico_tx[tx++] = pico_build_msg("count",pico_temp,pico_i)
+        pico_tx[tx++] = pico_build_msg("length",pico_temp2,pico_i)
+        pico_tx[tx++] = pico_build_msg("length_off",pico_temp3,pico_i)
+        pico_tx[tx++] = pico_build_msg("trigger_us",1,1)    #external mcs trigger is set to 1us non user configurable
+    }
+    else if(pico_mode == 3){
+        pico_temp = _ql("Output pulse LENGTH (sec)?",0,7)
+        pico_tx[tx++] = pico_build_msg("length",pico_temp,1)
+    }
+    else if(pico_mode == 4){
+        pico_temp = _ql("Input pulse quantity per ON output?",0,0xFFFFFFFF)
+        pico_tx[tx++] = pico_build_msg("length",pico_temp,1)
+        pico_temp = _ql("Input pulse quantity per OFF output?",0,0xFFFFFFFF)
+        pico_tx[tx++] = pico_build_msg("length_off",pico_temp,1)
+    }
+    else if(pico_mode == 5){
+        pico_regions = _ql("How many different regions?",1,100)  #arbitrary upper limit
+        for(pico_i = 0; pico_i < pico_regions; pico_i++){
+            p "For region " (pico_i + 1)
+            pico_temp[pico_i] = _ql("Total number of output pulses?",0,0xFFFFFFFF)
+            pico_temp2[pico_i] = _ql("Output pulse LENGTH (sec)?",0,7)
+        }
+        pico_tx[tx++] = pico_build_msg("length",pico_temp,pico_i)
+    }
+    else if(pico_mode == 6){
+        pico_regions = _ql("How many different regions?",1,100)  #arbitrary upper limit
+        for(pico_i = 0; pico_i < pico_regions; pico_i++){
+            p "For region " (pico_i + 1)
+            pico_temp[pico_i] = _ql("Total number of output pulses?",0,0xFFFFFFFF)
+            pico_temp2[pico_i] = _ql("Input pulse quantity per ON output?",0,0xFFFFFFFF)
+            pico_temp3[pico_i] = _ql("Input pulse quantity per OFF output?",0,0xFFFFFFFF)
+            
+        }
+        pico_tx[tx++] = pico_build_msg("count",pico_temp,pico_i)
+        pico_tx[tx++] = pico_build_msg("length",pico_temp2,pico_i)
+        pico_tx[tx++] = pico_build_msg("length_off",pico_temp3,pico_i)
+    }
+    """
+
+    
+}'
+
+def _pico_build_msg(keyword,data,data_length) '{
+    local tx_string tx_i
+    tx_string = "<"
+    tx_string = tx_string keyword   #keyword is expected to be a string
+    for(tx_i = 0; tx_i < data_length; tx_i++){
+        tx_string = tx_string ","
+        tx_string = tx_string data
+    }
+    tx_string = tx_string ">"
+
+    return tx_string
+}'
+
+def _pico_send(pico_string,string_length)'{
+    local p_i
+    ser_par(PICO_GEN_ADDR,"flush")
+    wait(0.1)
+    ser_put(PICO_GEN_ADDR,"<disable>")
+    wait(0.1)
+    for(p_i = 0; p_i < string_length; p_i++){   
+        ser_put(PICO_GEN_ADDR,pico_string[p_i])
+        wait(0.1)
+    }
+}'
+
+#prints pico data to spec terminal if in debug mode
+def _pico_print_basic(echo) '{
+    local pico_get
+    ser_par(PICO_GEN_ADDR,"flush")
+    ser_put(PICO_GEN_ADDR,"<print>")
+    sleep(1)#allows time to fill buffer due to 115200 baud
+    pico_get = ser_get(PICO_GEN_ADDR) #stores comm as one comma delimited string
+    if(echo)
+        p pico_get
+
+    return pico_get
+}'
+
+def _pico_print(keyword,val_return) '{
+    local pico_data pico_array_length pico_array[] pico_i i keyword_found pico_temp j pico_vals
+
+    if(!keyword){
+        p "invalid keyword"
+        exit
+    }
+
+    pico_data = PICO_DEBUG ? _pico_print_basic(1) : _pico_print_basic(0)
+
+    pico_array_length = split(pico_data,pico_array,",")
+
+    #looks for a keyword and then looks at the values at follow
+    #numbers are returned as 8 so once it hit another keyword it starts the return sequence
+    for(i = 0, pico_i = 0; i < pico_array_length; i++){
+        #p pico_array[i]
+        if(keyword_found){
+            #p whatis(pico_array[i],1)
+            if(whatis(pico_array[i]) == 8){
+                #p "here"
+                pico_temp[pico_i++] = pico_array[i]
+            }
+            else{
+                if(val_return){
+                    if(pico_i == 1){
+                        return pico_temp[0]
+                    }
+                    else{
+                        return pico_temp
+                    }
+                    
+                }
+                else{
+                    #p pico_i
+                    for (j = 0; j < pico_i; j++){
+                        pico_vals += sprintf("%s",pico_temp[j])
+                    }
+                    p keyword " is " pico_vals
+                    break
+                } 
+            }   
+        }
+        if(pico_array[i] == keyword){
+            keyword_found = 1
+        }
+    }
+}'
+
+#function for asking user questions without displaying a null value for the answer when asking the question
+def _ql (question,lower,upper)'{
+    local tempa templ
+
+    while(1){
+        p question
+        tty_cntl("up")
+        for(templ = 0; templ <= length(question); templ++){
+            tty_cntl("nd")
+        }
+            tempa = getval("")
+        if(tempa <= upper && tempa >= lower){
+            exit
+        }
+        p "value must be between " lower " and " upper
+    }
+
+    return sprintf(",%s",tempa)
+}'
+
+#question binary
+def _qb (question,yes_val,no_val,default)'{
+    local tempa templ
+
+    tempa = yesno(question,default)
+
+    if(tempa){
+        return yes_val
+    }
+    else{
+        return no_val
+    }
+}'
+
+"""
+def pico_io '{
+    local pico_temp pico_tx[] tx
+
+    #generic questions for most modes
+    pico_temp = _qb("Input active HIGH?","input_high","input_low",1)
+    pico_tx[tx++] = pico_build_msg(pico_temp,"",0)
+
+    pico_temp = _qb("Output active HIGH?","output_high","output_low",1)
+    pico_tx[tx++] = pico_build_msg(pico_temp,"",0)
+
+    pico_temp = _ql("Input DEBOUNCE length (us)?",0,1000000)
+    pico_tx[tx++] = pico_build_msg("debounce",pico_temp,0)
+
+    pico_temp = _qb("External enable input?","external_enable","external_disable",0)
+    pico_tx[tx++] = pico_build_msg(pico_temp,"",0)
+
+    _pico_send(pico_tx,tx)
+}'
+
+def _pico_decode(pico_array) '{
+    local decode_i decode_elements
+    decode_elements = split
+
+    for(decode_i = 0; decode_i < decode_elements; decode_i++){
+
+    }
+}'
+"""
+
+#macro for pre flyscan hooks for pico
+def pico_pre '{
+    if ($1) {
+        cdef("user_flyscan_pre_run", "pico_enable; mono_background_prog;", "flyescan", 0x10)
+    } else {
+        cdef("", "", "flyescan", "delete")
+    }
+
+}'
+
+def picoflye'{
+    local temp_regions temp_length_on[] temp_length_off[] temp_count[] temp_length_last[] pico_data temp_trigger_us
+
+    if($# != 6){
+        p "usage: picoflye regions frame_steps frames dwell_steps final_steps mcs_pulse_us"
+        exit
+    }
+    else{
+        temp_regions = $1    
+        temp_length_on = $2
+        temp_count = $3
+        temp_length_off = $4
+        temp_length_last = $5
+        temp_trigger_us = $6
+    }
+    
+    ser_put(PICO_GEN_ADDR,"<disable>")
+    ser_put(PICO_GEN_ADDR,"<mode,2>")
+    ser_put(PICO_GEN_ADDR,sprintf("<regions,%i>",temp_regions))
+    ser_put(PICO_GEN_ADDR,"<input_high>")
+    ser_put(PICO_GEN_ADDR,"<output_high>")
+    ser_put(PICO_GEN_ADDR,"<debounce,1>")
+    ser_put(PICO_GEN_ADDR,sprintf("<trigger,%i>",temp_trigger_us))
+
+    #updates pico with pulse length array using string concatenation
+    cmd = "<length"
+    if(temp_regions == 1){
+        cmd = cmd "," temp_length_on[0]
+    }
+    else{
+        for(edit_i = 0; edit_i < temp_regions; edit_i++){
+            cmd = cmd "," temp_length_on[edit_i]
+        }
+    }
+    cmd = cmd ">"
+    ser_put(PICO_GEN_ADDR,cmd)
+
+    #updates pico with pulse length array using string concatenation
+    cmd = "<dead"
+    if(temp_regions == 1){
+        cmd = cmd "," temp_length_off[0]
+    }
+    else{
+        for(edit_i = 0; edit_i < temp_regions; edit_i++){
+            cmd = cmd "," temp_length_off[edit_i]
+        }
+    }
+    cmd = cmd ">"
+    ser_put(PICO_GEN_ADDR,cmd)
+
+    #updates pico with pulse count array using string concatenation
+    cmd = "<count"
+    if(temp_regions ==1){
+        cmd = cmd "," temp_count[0]
+    }
+    else{
+        for(edit_i = 0; edit_i < temp_regions; edit_i++){
+            cmd = cmd "," temp_count[edit_i]
+        }
+    }
+    cmd = cmd ">"
+    ser_put(PICO_GEN_ADDR,cmd)
+
+    #updates pico with final frame pulse count for mono flyscanning
+    cmd = "<last"
+    if(temp_regions ==1){
+        cmd = cmd "," temp_length_last[0]
+    }
+    else{
+        for(edit_i = 0; edit_i < temp_regions; edit_i++){
+            cmd = cmd "," temp_length_last[edit_i]
+        }
+    }
+    cmd = cmd ">"
+    ser_put(PICO_GEN_ADDR,cmd)
+
+    PICO_DEBUG ? _pico_print_basic(1) : 0    #debug print
+    #ser_put(PICO_GEN_ADDR,"<enable>")
+}'

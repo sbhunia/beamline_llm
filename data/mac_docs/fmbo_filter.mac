@@ -1,0 +1,58 @@
+#fmb oxford filter macros
+
+def opens '
+sock_put("192.168.182.95:4001","\!PFCU15 R 4 \n")
+#sock_put("192.168.182.95:4001","\!PFCU15 R 1 \n")
+sleep(.5)
+p sock_get("192.168.182.95:4001")
+'
+
+def closes '
+sock_put("192.168.182.95:4001","\!PFCU15 I 4 \n")
+#sock_put("192.168.182.95:4001","\!PFCU15 I 1 \n")
+sleep(.5)
+p sock_get("192.168.182.95:4001")
+'
+
+def wfilter '
+sleep(.5)
+sock_put("192.168.182.95:4001","\!PFCU15 P \n")
+sleep(.5)
+p sock_get("192.168.182.95:4001")
+'
+
+def setfilter '
+if ($# != 3) {
+eprint "Usage: setfilter f1 f2 f3  (0=out, 1=in)"
+eprint "f1: 10 microns Cu"
+eprint "f2: 20 microns Cu"
+eprint "f3: 40 microns Cu"
+exit
+}
+
+_filt1=$1
+_filt2=$2
+_filt3=$3
+
+eval(sprintf("sock_put(\"192.168.182.95:4001\",\"\\!PFCU15 W %s %s %s \\n\")",_filt1,_filt2,_filt3))
+#p "Setfiler disabled at the moment, sorry"
+sleep(0.5)
+wfilter
+'
+
+def nofilter '
+#sock_put("192.168.182.95:4001","\!PFCU15 R 4 \n")
+sock_put("192.168.182.95:4001","\!PFCU15 R 2 \n")
+sleep(.5)
+p sock_get("192.168.182.95:4001")
+'
+
+def yesfilter '
+#sock_put("192.168.182.95:4001","\!PFCU15 I 4 \n")
+sock_put("192.168.182.95:4001","\!PFCU15 I 2 \n")
+sleep(.5)
+p sock_get("192.168.182.95:4001")
+'
+
+
+
