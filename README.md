@@ -2,17 +2,6 @@
 
 This project is a web application that (currently, subject to change) utilizes Chainlit to provide an interactive interface for querying a RAG LLM that specifically only uses documentation from the [CHESS ID4B - QM2 Beamline Documentation](https://suchismitasarker.github.io/CHESS-ID4B-QM2/). The application processes user questions and retrieves relevant information using the language model.
 
-## TODO List
-
-[ ] Allow OpenAI implementation to use prompt template (`models/openai/query.py`)
-[X] Fix bug where 'models' module not found (`utils/query_model.py`)
-
-[X] Print links to source files used with nice formatting (`app.py`)
-[ ] Fix bug where Chainlit text box pastes double (`app.py`?)
-[ ] Change intro message depending on what model is default (`app.py`)
-[X] Add a list of models available (`utils/config.py`)
-
-
 
 ## Project Structure
 
