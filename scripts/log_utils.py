@@ -1,5 +1,5 @@
 from __future__ import annotations
-import os, csv, uuid, datetime as dt
+import os, csv, uuid, datetime as dt, requests
 from typing import Dict, Any, List
 
 # ---------------- Paths + Session ----------------
@@ -32,7 +32,25 @@ _PIPELINE_HEADER = [
     "raw_output_preview","final_output_preview"
 ]
 
-# ---------------- Functions ----------------
+# ---------------- Ollama Health Check ----------------
+def check_ollama_health(base_url="http://127.0.0.1:11434"):
+    """
+    Check if Ollama is running and list available models.
+    Returns a dict logged as part of pipeline_<session>.csv.
+    """
+    try:
+        resp = requests.get(f"{base_url}/api/tags", timeout=5)
+        if resp.status_code == 200:
+            data = resp.json()
+            models = [m["name"] for m in data.get("models", [])]
+            return {"status": "ok", "models": models}
+        else:
+            return {"status": f"bad_status_{resp.status_code}", "models": []}
+    except Exception as e:
+        return {"status": f"error: {e}", "models": []}
+
+
+# ---------------- Logging functions ----------------
 def log_event(event: str, payload: Dict[str, Any]):
     """
     Append a high-level event (summary per query) to telemetry_<session>.csv
