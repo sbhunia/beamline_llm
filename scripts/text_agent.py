@@ -5,6 +5,7 @@ from typing import Dict, Any, List, Optional
 from langchain_community.vectorstores import FAISS
 from langchain_core.documents import Document
 from langchain_ollama import ChatOllama
+from scripts.ollama_health import check_ollama_health
 
 try:
     from langchain_ollama import OllamaEmbeddings
@@ -195,6 +196,24 @@ def answer(query: str) -> Dict[str, Any]:
         "prompt_chars": len(prompt),
         "prompt_preview": prompt[:200]
     })
+        # --- Ollama health check ---
+    ollama_info = check_ollama_health()
+    log_stage(q, "ollama_health", {
+        "agent": "text",
+        "retrieved": ollama_info
+    })
+
+    if ollama_info.get("status") != "ok":
+        print(f"[⚠️ text] Ollama not reachable: {ollama_info}")
+        return {
+            "answer": "Ollama is not available right now.",
+            "grounded": False,
+            "inferred": False,
+            "sources": [],
+            "prompt_chars": len(prompt),
+            "raw_prompt": prompt,
+            "rag_excerpts": excerpts[:5],
+        }
 
     out = _call_llm(prompt, temperature=0.0).strip()
 

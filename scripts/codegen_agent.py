@@ -13,7 +13,9 @@ from langchain_community.vectorstores import FAISS
 from langchain_core.documents import Document
 
 from scripts.load_drive_code import load_drive_docs   # <- your chunked PDF loader
-from scripts.log_utils import log_stage  # <-- added
+
+from scripts.log_utils import log_stage, check_ollama_health
+
 
 # ---------------- Config ----------------
 OLLAMA_BASE = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
@@ -158,6 +160,28 @@ def run_codegen_ui(task: str) -> Dict[str, Any]:
         "prompt_preview": prompt[:200]
     })
 
+    # --- Ollama health check ---
+    ollama_info = check_ollama_health()
+    log_stage(task, "ollama_health", {
+        "agent": "code",
+        "retrieved": ollama_info
+    })
+
+    if ollama_info.get("status") != "ok":
+        print(f"[⚠️ code] Ollama not reachable: {ollama_info}")
+        return {
+            "code": 'print "ollama not available"',
+            "method": "fallback",
+            "retrieved": retrieved_chunks,
+            "debug": {
+                "ollama_health": ollama_info,
+                "exact_prompt": prompt,
+                "rag_context": rag_blob,
+                "raw_output": ""
+            }
+        }
+
+    # --- Call LLM only if healthy ---
     raw_out = _call_llm(prompt)
 
     # --- Log raw output ---
