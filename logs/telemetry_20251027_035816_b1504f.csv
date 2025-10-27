@@ -1,0 +1,12 @@
+timestamp,session_id,event,original_query,rewritten_query,route,confidence,method,agent,grounded,parser_passed,inferred,prompt_chars,sources,preview
+2025-10-27T03:59:54,20251027_035816_b1504f,query_rewrite,code for spinning the crystal 3 times,code for spinning the crystal 3 times,,,,code,,,,,,
+2025-10-27T04:00:36,20251027_035816_b1504f,query_rewrite,code using ser_get command,SPEC macro example for code using ser_get command,,,,code,,,,,,
+2025-10-27T04:02:01,20251027_035816_b1504f,query_rewrite,how to Clear the scalers and start the clock ,how to Clear the scalers and start the clock,,,,code,,,,,,
+2025-10-27T04:02:22,20251027_035816_b1504f,query_rewrite,how to set a single motor’slimits,how to set a single motor’slimits,,,,code,,,,,,
+2025-10-27T04:03:14,20251027_035816_b1504f,query_rewrite,how to add trailer to a file,how to add trailer to a file,,,,code,,,,,,
+2025-10-27T04:03:42,20251027_035816_b1504f,query_rewrite,how to add trailer to a file,how to add trailer to a file,,,,code,,,,,,
+2025-10-27T04:04:01,20251027_035816_b1504f,query_rewrite,reflex_end macro,SPEC macro example for reflex_end macro,,,,code,,,,,,
+2025-10-27T04:04:17,20251027_035816_b1504f,query_rewrite,the reflex_end macro puts the proper trailer on the file,the reflex_end macro puts the proper trailer on the file,,,,code,,,,,,
+2025-10-27T04:04:36,20251027_035816_b1504f,query_rewrite,how to calculate the new lattice parameters,how to calculate the new lattice parameters,,,,code,,,,,,
+2025-10-27T04:07:15,20251027_035816_b1504f,query_rewrite,To calculate the new lattice parameters,To calculate the new lattice parameters,,,,code,,,,,,
+2025-10-27T04:07:50,20251027_035816_b1504f,query_rewrite,hi,SPEC macro example showing usage of hi,,,,code,,,,,,

@@ -1,16 +1,9 @@
 from __future__ import annotations
 import os
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as _TOError
-import streamlit as st
-
-# Router import — handle either router.py or log_router.py
-try:
-    from scripts.router import route as route_query
-except Exception:
-    from scripts.log_router import route as route_query  # type: ignore
+import streamlit as st  
 
 from scripts.codegen_agent import run_codegen_ui
-from scripts.text_agent import answer as text_answer
 from scripts.log_utils import log_event
 
 # ---------------- Timeout helper ----------------
@@ -109,138 +102,53 @@ for m in st.session_state.messages:
             st.markdown(m["content"], unsafe_allow_html=True)
 
 # ---------------- Chat input ----------------
-user_query = st.chat_input("Type your query here…")
+# ---------------- Chat input ----------------
+user_query = st.chat_input("Type your SPEC macro request here…")
+
 if user_query:
     with st.chat_message("user"):
         st.markdown(user_query)
     st.session_state.messages.append({"role": "user", "content": user_query})
 
-    # Route
-    try:
-        r = route_query(user_query)
-        route, conf, method = r["route"], r["confidence"], r["method"]
-    except Exception as e:
-        route, conf, method = "text", 0.0, f"router-error: {e}"
+    # Code generation
+    result, err = run_with_timeout(run_codegen_ui, user_query, timeout_s=60)
+    badge = "<span class='agent-badge'>🛠️ CODE AGENT</span>"
 
-    if st.session_state.show_debug:
-        with st.expander("🔍 Router"):
-            st.write({"route": route, "confidence": conf, "method": method})
+    if err or not result:
+        code_out = 'print "error or timeout"'
+        with st.chat_message("assistant"):
+            st.markdown(badge, unsafe_allow_html=True)
+            st.code(code_out, language="spec")
+            st.markdown(f"<div class='warn'>Detail: {err or 'unknown'}</div>", unsafe_allow_html=True)
+        log_event("error", {"agent": "code", "query": user_query, "error": err or "unknown"})
+        st.session_state.messages.append({
+            "role": "assistant",
+            "badge_html": badge,
+            "code_block": code_out,
+            "footnote": f"<div class='warn'>Detail: {err or 'unknown'}</div>"
+        })
 
-    # ---- CODE route ----
-    if route == "code":
-        result, err = run_with_timeout(run_codegen_ui, user_query, timeout_s=45)
-
-        if err or not result:
-            badge = "<span class='agent-badge agent-code'>🛠️ CODE AGENT</span>"
-            code_out = 'print "error or timeout"'
-            with st.chat_message("assistant"):
-                st.markdown(badge, unsafe_allow_html=True)
-                st.code(code_out, language="spec")
-                st.markdown(f"<div class='warn'>Detail: {err or 'unknown'}</div>", unsafe_allow_html=True)
-            st.session_state.messages.append({
-                "role": "assistant",
-                "badge_html": badge,
-                "code_block": code_out,
-                "footnote": f"<div class='warn'>Detail: {err or 'unknown'}</div>",
-            })
-            log_event("error", {"agent":"code","query":user_query,"error":err or "unknown",
-                                "route":route,"method":method})
-        else:
-            code = (result.get("code") or "").strip() or 'print "insufficient evidence"'
-            retrieved = result.get("retrieved", [])
-            debug_info = result.get("debug", {})
-            grounded = bool(result.get("grounded", False))
-            parser_passed = bool(result.get("parser_passed", False))
-            badge = "<span class='agent-badge agent-code'>🛠️ CODE AGENT</span>"
-
-            with st.chat_message("assistant"):
-                st.markdown(badge, unsafe_allow_html=True)
-                st.code(code, language="spec")
-
-                if debug_info.get("exact_prompt"):
-                    with st.expander("🔎 Exact prompt sent to the model"):
-                        st.text(debug_info["exact_prompt"])
-
-                if debug_info.get("rag_context"):
-                    with st.expander("📚 RAG context (joined blob)"):
-                        st.text(debug_info["rag_context"])
-
-                if retrieved:
-                    with st.expander(f"🌿 Retrieved chunks ({len(retrieved)}) — previews"):
-                        for i, chunk in enumerate(retrieved, 1):
-                            st.markdown(f"**[{i}]** score={chunk['score']:.4f} "
-                                        f"src={chunk['source']}  \n"
-                                        f"{chunk['snippet']}...")
-
-                if debug_info.get("raw_output"):
-                    with st.expander("📝 Model raw outputs (no post-processing)"):
-                        st.text(debug_info["raw_output"])
-
-                foot = f"✅ Grounded: {grounded} • ✅ Parser passed: {parser_passed}"
-                st.markdown(foot)
-
-            st.session_state.messages.append({
-                "role": "assistant",
-                "badge_html": badge,
-                "code_block": code,
-                "footnote": foot,
-            })
-            log_event("response", {
-                "query": user_query,"agent":"code","route":route,
-                "confidence":conf,"method":method,
-                "grounded": grounded,"parser_passed": parser_passed,
-                "sources": result.get("sources", []),
-                "prompt_chars": result.get("prompt_chars", 0),
-                "preview": code
-            })
-
-    # ---- TEXT route ----
     else:
-        resp, err = run_with_timeout(text_answer, user_query, timeout_s=45)
+        code = (result.get("code") or "").strip() or 'print "insufficient evidence"'
+        retrieved = result.get("retrieved", [])
+        debug_info = result.get("debug", {})
 
-        if err or not resp:
-            msg = (f"<span class='agent-badge agent-text'>📚 TEXT AGENT</span><br/>Error/timeout."
-                   f"<br/><div class='warn'>Detail: {err or 'unknown'}</div>")
-            with st.chat_message("assistant"):
-                st.markdown(msg, unsafe_allow_html=True)
-            st.session_state.messages.append({"role": "assistant", "content": msg})
-            log_event("error", {"agent":"text","query":user_query,"error":err or "unknown",
-                                "route":route,"method":method})
-        else:
-            text = resp.get("answer", "")
-            grounded = bool(resp.get("grounded", False))
-            inferred = bool(resp.get("inferred", False))
-            excerpts = resp.get("rag_excerpts", [])
-            sources = resp.get("sources", [])
+        with st.chat_message("assistant"):
+            st.markdown(badge, unsafe_allow_html=True)
+            st.code(code, language="spec")
 
-            badge = "<span class='agent-badge agent-text'>📚 TEXT AGENT</span>"
-            with st.chat_message("assistant"):
-                st.markdown(f"{badge}<br/>{text}\n\n✅ Grounded: {grounded} • 🤔 Inferred: {inferred}",
-                            unsafe_allow_html=True)
+            if st.session_state.show_debug:
+                with st.expander("🔎 Debug Info"):
+                    st.write(debug_info)
 
-                if excerpts:
-                    with st.expander(f"🌿 Retrieved chunks ({len(excerpts)}) — previews"):
-                        for i, chunk in enumerate(excerpts, 1):
-                            src, score = sources[i-1] if i-1 < len(sources) else ("unknown", 0.0)
-                            st.markdown(f"**[{i}]** score={score:.4f} src={src}  \n"
-                                        f"{chunk[:300]}...")
+            if retrieved:
+                with st.expander(f"📚 Retrieved Chunks ({len(retrieved)})"):
+                    for i, chunk in enumerate(retrieved, 1):
+                        st.markdown(f"**[{i}]** score={chunk['score']:.4f} src={chunk['source']}  \n"
+                                    f"{chunk['snippet']}...")
 
-            st.session_state.messages.append({
-                "role": "assistant",
-                "content": text,
-                "badge_html": badge,
-                "rag_chunks": excerpts,
-                "sources": sources,
-            })
-            log_event("response", {
-                "query": user_query,"agent":"text","route":route,
-                "confidence":conf,"method":method,
-                "grounded": grounded,"inferred": inferred,
-                "sources": sources,
-                "prompt_chars": resp.get("prompt_chars", 0),
-                "preview": text
-            })
-
-# Footer
-st.markdown("---")
-st.markdown("💡 **Tips:** Try queries like 'write a scan macro', 'explain SPEC motors', or 'what is ascan'")
+        st.session_state.messages.append({
+            "role": "assistant",
+            "badge_html": badge,
+            "code_block": code
+        })
