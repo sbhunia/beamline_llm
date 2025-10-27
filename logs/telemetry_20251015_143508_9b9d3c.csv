@@ -1,0 +1,2 @@
+timestamp,session_id,event,original_query,rewritten_query,route,confidence,method,agent,grounded,parser_passed,inferred,prompt_chars,sources,preview
+2025-10-15T14:36:41,20251015_143508_9b9d3c,query_rewrite,define spec,Explain in detail: define spec,,0.9,,text,,,,,,
