@@ -1,6 +1,6 @@
 from __future__ import annotations
 import os, csv, uuid, datetime as dt, requests
-from typing import Dict, Any, List
+from typing import Dict, Any
 
 # ---------------- Paths + Session ----------------
 LOG_DIR = os.getenv("LOG_DIR", "logs")
@@ -19,7 +19,9 @@ PIPELINE_PATH = os.path.join(LOG_DIR, f"pipeline_{SESSION_ID}.csv")
 
 # ---------------- Telemetry Header ----------------
 _HEADER = [
-    "timestamp","session_id","event","query","route","confidence","method",
+    "timestamp","session_id","event",
+    "original_query","rewritten_query",
+    "route","confidence","method",
     "agent","grounded","parser_passed","inferred",
     "prompt_chars","sources","preview"
 ]
@@ -54,12 +56,16 @@ def check_ollama_health(base_url="http://127.0.0.1:11434"):
 def log_event(event: str, payload: Dict[str, Any]):
     """
     Append a high-level event (summary per query) to telemetry_<session>.csv
+    payload must contain:
+        original_query (str)
+        rewritten_query (str)
     """
     row = [
         dt.datetime.now().isoformat(timespec="seconds"),
         SESSION_ID,
         event,
-        payload.get("query",""),
+        payload.get("original_query",""),
+        payload.get("rewritten_query",""),
         payload.get("route",""),
         payload.get("confidence",""),
         payload.get("method",""),

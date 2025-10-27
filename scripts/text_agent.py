@@ -5,8 +5,9 @@ from typing import Dict, Any, List, Optional
 from langchain_community.vectorstores import FAISS
 from langchain_core.documents import Document
 from langchain_ollama import ChatOllama
-from scripts.ollama_health import check_ollama_health
+from scripts.log_utils import log_event
 
+from scripts.query_rewrite import rewrite_user_query
 try:
     from langchain_ollama import OllamaEmbeddings
     _HAS_OLLAMA_EMB = True
@@ -16,7 +17,7 @@ except Exception:
 from scripts.load_drive import load_drive_docs
 from scripts.load_markdown import load_markdown_docs
 from scripts.load_website import load_website
-from scripts.log_utils import log_stage  # <-- added
+from scripts.log_utils import log_stage  
 
 OLLAMA_BASE = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
 DEFAULT_MODEL = os.getenv("TEXT_MODEL", os.getenv("CODE_MODEL", "mistral:latest"))
@@ -71,7 +72,6 @@ def _build_vs() -> FAISS:
     _VS = FAISS.from_documents(docs, emb)
     return _VS
 
-
 # ---------------- Prompt ----------------
 BASE_PROMPT = """You answer questions using SPEC-related documents.
 
@@ -100,12 +100,14 @@ def _normalize_query(q: str) -> str:
 def _call_llm(prompt: str, temperature: float = 0.0) -> str:
     try:
         llm = ChatOllama(model=DEFAULT_MODEL, base_url=OLLAMA_BASE, temperature=temperature)
+        print(f"[DEBUG] Sending prompt to Ollama ({DEFAULT_MODEL})...")
         out = llm.invoke([{"role": "user", "content": prompt}])
+        # Print raw return so your advisor can SEE traffic from Ollama:
+        print(f"[DEBUG] Ollama raw response (TEXT agent): {out}")
         return getattr(out, "content", str(out)) or ""
     except Exception as e:
         print(f"[text] LLM call error: {e}")
         return ""
-
 
 # ---------------- Public API ----------------
 def answer(query: str) -> Dict[str, Any]:
@@ -119,15 +121,32 @@ def answer(query: str) -> Dict[str, Any]:
             "sources": [], "prompt_chars": 0, "raw_prompt": "", "rag_excerpts": []
         }
 
-    if not any(w in q_lower for w in ["spec","ascan","dscan","mesh","umv","mv","motor","detector","beamline","macro","scan"]) and "?" not in q_lower:
+    # If the query has at least one word and is not empty, always try retrieval.
+# Previously we hard-filtered out "short" queries — now we let them through.
+    if not q_lower.strip():
         return {
             "answer": "I don’t see that in the provided documents.",
             "grounded": False, "inferred": False, "sources": [],
             "prompt_chars": 0, "raw_prompt": "", "rag_excerpts": []
         }
 
+    # Auto-expand single-word queries like "ser_put" or short phrases into an explain-style prompt
+    if len(q_lower.split()) <= 3 and not any(x in q_lower for x in ["what", "explain", "define", "describe"]):
+        q_lower = f"explain the command or function {q_lower}"
+
+
     vs = _build_vs()
-    q = _normalize_query(q_raw)
+    rewritten_q = rewrite_user_query(q_raw)
+    print(f"[DEBUG] Text Agent — Query rewritten: {q_raw!r} → {rewritten_q!r}")
+
+    #  Log the rewrite step
+    log_event("query_rewrite", {
+        "original_query": q_raw,
+        "rewritten_query": rewritten_q,
+        "agent": "text",
+        "confidence": 0.9
+    })
+    q = _normalize_query(rewritten_q)
 
     # --- Log query embedding ---
     try:
@@ -172,7 +191,7 @@ def answer(query: str) -> Dict[str, Any]:
             {
                 "source": doc.metadata.get("source","unknown"),
                 "score": float(score),
-                "snippet": (doc.page_content or "")[:300]  # capture first 300 chars
+                "snippet": (doc.page_content or "")[:300]
             }
             for doc, score in top if doc.page_content
         ]
@@ -196,25 +215,8 @@ def answer(query: str) -> Dict[str, Any]:
         "prompt_chars": len(prompt),
         "prompt_preview": prompt[:200]
     })
-        # --- Ollama health check ---
-    ollama_info = check_ollama_health()
-    log_stage(q, "ollama_health", {
-        "agent": "text",
-        "retrieved": ollama_info
-    })
 
-    if ollama_info.get("status") != "ok":
-        print(f"[⚠️ text] Ollama not reachable: {ollama_info}")
-        return {
-            "answer": "Ollama is not available right now.",
-            "grounded": False,
-            "inferred": False,
-            "sources": [],
-            "prompt_chars": len(prompt),
-            "raw_prompt": prompt,
-            "rag_excerpts": excerpts[:5],
-        }
-
+    # --- Call LLM directly (no health check) ---
     out = _call_llm(prompt, temperature=0.0).strip()
 
     # --- Log raw output ---
@@ -241,4 +243,3 @@ def answer(query: str) -> Dict[str, Any]:
         "raw_prompt": prompt,
         "rag_excerpts": excerpts[:5],
     }
-
