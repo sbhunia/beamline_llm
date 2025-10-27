@@ -1,0 +1,3 @@
+timestamp,session_id,event,original_query,rewritten_query,route,confidence,method,agent,grounded,parser_passed,inferred,prompt_chars,sources,preview
+2025-10-15T14:29:05,20251015_142706_3c70fd,query_rewrite,what are motors?,Explain in detail: what are motors?,,0.9,,text,,,,,,
+2025-10-15T14:29:05,20251015_142706_3c70fd,query_rewrite,what are motors?,Explain in detail: what are motors?,,0.9,,text,,,,,,

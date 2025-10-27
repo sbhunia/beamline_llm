@@ -1,0 +1,4 @@
+timestamp,session_id,event,query,route,confidence,method,agent,grounded,parser_passed,inferred,prompt_chars,sources,preview
+2025-10-13T20:41:30,20251013_204125_e5ab9e,response,hi,text,0.5,error: model 'mistral:instruct' not found (status code: 404),text,False,,False,0,[],Hey! I can explain SPEC docs or help craft macros. Try “what is ascan” or “write a macro to rotate the sample 3 times”.
+2025-10-13T20:41:48,20251013_204125_e5ab9e,error,what is a spec macro?,text,,error: model 'mistral:instruct' not found (status code: 404),text,,,,,,
+2025-10-13T20:41:59,20251013_204125_e5ab9e,error,define beamline,text,,error: model 'mistral:instruct' not found (status code: 404),text,,,,,,

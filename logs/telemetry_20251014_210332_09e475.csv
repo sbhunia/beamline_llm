@@ -1,0 +1,3 @@
+timestamp,session_id,event,query,route,confidence,method,agent,grounded,parser_passed,inferred,prompt_chars,sources,preview
+2025-10-14T21:03:44,20251014_210332_09e475,response,explain the history command,text,0.5,error: Expecting value: line 2 column 1 (char 1),text,False,,False,0,[],I don’t see that in the provided documents.
+2025-10-14T21:04:21,20251014_210332_09e475,response,what is splot,text,0.5,error: Expecting value: line 1 column 1 (char 0),text,False,,False,0,[],I don’t see that in the provided documents.
