@@ -1,0 +1,3 @@
+timestamp,session_id,request_id,event,original_query,rewritten_query,route,confidence,method,agent,grounded,parser_passed,inferred,prompt_chars,sources,preview
+2025-11-03T08:34:39,20251103_083437_1e4c3a,REQ_ffb0ba9b,user_query_received,hi,,,,llm-rag,code,,,,,,
+2025-11-03T08:34:39,20251103_083437_1e4c3a,,error,,,,,,code,,,,,,

@@ -9,6 +9,7 @@ import pandas as pd
 # Directories
 PRIMARY_DIR = os.getenv("DRIVE_DIR", "/home/vallurs/research/data/drive_docs_code")
 SECONDARY_DIR = "/home/vallurs/research/data/drive_docs"  # shared folder for tables
+MACRO_DIR = "/home/vallurs/research/data/mac_docs"         # your local .mac directory
 
 def _collect_paths(folder: str, ext: str) -> List[str]:
     if not os.path.isdir(folder):
@@ -18,6 +19,17 @@ def _collect_paths(folder: str, ext: str) -> List[str]:
         for f in os.listdir(folder)
         if os.path.isfile(os.path.join(folder, f)) and f.lower().endswith(ext)
     ]
+
+def _normalize_text(txt: str) -> str:
+    return (
+        txt.replace("\u2018", "'")
+           .replace("\u2019", "'")
+           .replace("\u201C", '"')
+           .replace("\u201D", '"')
+           .replace("\n", " ")
+           .replace("\t", " ")
+           .strip()
+    )
 
 def load_drive_docs(chunk_size: int = 1000, chunk_overlap: int = 200) -> List[Document]:
     docs: List[Document] = []
@@ -72,16 +84,25 @@ def load_drive_docs(chunk_size: int = 1000, chunk_overlap: int = 200) -> List[Do
             except Exception as e:
                 print(f"[DEBUG] Failed to load table {f}: {e}")
 
+    # ---------------- MAC file loading ----------------
+    if os.path.isdir(MACRO_DIR):
+        mac_paths = _collect_paths(MACRO_DIR, ".mac")
+        for path in mac_paths:
+            try:
+                with open(path, "r", encoding="utf-8", errors="ignore") as f:
+                    content = _normalize_text(f.read())
+                # You can optionally split long .mac files into smaller logical chunks
+                chunks = text_splitter.split_text(content)
+                for chunk in chunks:
+                    docs.append(Document(
+                        page_content=chunk,
+                        metadata={"source": os.path.basename(path)}
+                    ))
+                print(f"[DEBUG] Loaded {len(chunks)} chunks from {os.path.basename(path)} in {MACRO_DIR}")
+            except Exception as e:
+                print(f"[DEBUG] Failed to load {path}: {e}")
+    else:
+        print(f"[DEBUG] MACRO_DIR not found: {MACRO_DIR}")
+
     print(f"[DEBUG] Total docs loaded for CODE AGENT: {len(docs)}")
     return docs
-
-def _normalize_text(txt: str) -> str:
-    return (
-        txt.replace("\u2018", "'")
-           .replace("\u2019", "'")
-           .replace("\u201C", '"')
-           .replace("\u201D", '"')
-           .replace("\n", " ")
-           .replace("\t", " ")
-           .strip()
-    )

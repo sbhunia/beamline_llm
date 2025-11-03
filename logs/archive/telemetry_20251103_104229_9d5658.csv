@@ -1,0 +1,7 @@
+timestamp,session_id,request_id,event,original_query,rewritten_query,route,confidence,method,agent,grounded,parser_passed,inferred,prompt_chars,sources,preview
+2025-11-03T10:43:06,20251103_104229_9d5658,REQ_3ec0c822,user_query_received,code for a you rotate/spin the crystal for 3 times.,,,,llm-rag,code,,,,,,
+2025-11-03T10:43:06,20251103_104229_9d5658,REQ_3ec0c822,query_rewrite,code for a you rotate/spin the crystal for 3 times.,code for a you rotate/spin the crystal for 3 times.,code,,,code,,,,,,
+2025-11-03T10:43:20,20251103_104229_9d5658,,error,,,,,,code,,,,,,
+2025-11-03T10:43:26,20251103_104229_9d5658,REQ_cd21960a,user_query_received,write a spec code to rotate/spin the crystal for 3 times.,,,,llm-rag,code,,,,,,
+2025-11-03T10:43:26,20251103_104229_9d5658,REQ_cd21960a,query_rewrite,write a spec code to rotate/spin the crystal for 3 times.,write a spec code to rotate/spin the crystal for 3 times.,code,,,code,,,,,,
+2025-11-03T10:43:26,20251103_104229_9d5658,,error,,,,,,code,,,,,,
