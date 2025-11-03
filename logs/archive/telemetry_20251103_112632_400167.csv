@@ -1,0 +1,4 @@
+timestamp,session_id,request_id,event,original_query,rewritten_query,route,confidence,method,agent,grounded,parser_passed,inferred,prompt_chars,sources,preview
+2025-11-03T11:26:54,20251103_112632_400167,REQ_89ef9f67,user_query_received,write a spec macro to spin the crystal 3 times,,,,llm-rag,code,,,,,,
+2025-11-03T11:26:54,20251103_112632_400167,REQ_89ef9f67,query_rewrite,write a spec macro to spin the crystal 3 times,write a spec macro to spin the crystal 3 times,code,,,code,,,,,,
+2025-11-03T11:27:10,20251103_112632_400167,REQ_89ef9f67,ui_return,write a spec macro to spin the crystal 3 times,write a spec macro to spin the crystal 3 times,,0.5152,,code,,False,,7499,"['spec Manual cambria.pdf', 'spec Manual cambria.pdf', 'spec Manual cambria.pdf', 'rot_macros_2020.mac', 'spec Manual cambria.pdf', 'spec Manual cambria.pdf', 'TABLE::commands.csv', 'TABLE::commands.csv']",def spin3 { \n     for (i = 0; i < 3; i++) { \n         ci tth th chi phi; \n     } \n }

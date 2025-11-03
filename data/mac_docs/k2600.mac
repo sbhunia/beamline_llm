@@ -2,8 +2,9 @@
 
 global KV_MNE
 global KI_MNE
+global KV_SET
 
-MOXA_ADD = "192.168.182.###"
+MOXA_ADD = "192.168.182.95"
 K2600_ADD = sprintf("%s:4002",MOXA_ADD)
 """
 edit these values and add to userlist.mac
@@ -13,7 +14,7 @@ K2600_ADD = sprintf("%s:400#",MOXA_ADD)
 
 def k2600_id'{
     k2600_send("*IDN?")
-    p k2600_get
+    p k2600_get()
 }'
 
 def k2600_reset'{
@@ -28,6 +29,17 @@ def k_beep '{
 
 def k2600_voff '{
     k2600_send("smua.source.output = smua.OUTPUT_OUTPUT_OFF")
+}'
+
+def k2600_measure_i() '{
+    #k2600_send("smua.measure.count = 1")
+    #k2600_send("smua.measure.i(smua.nvbuffer1)")
+    #k2600_send("print(smua.nvbuffer1)")
+    
+    k2600_send("reading = smua.measure.i()")
+    k2600_send("print(reading)")
+
+    return k2600_get()
 }'
 
 def k2600_sweep '{
@@ -46,16 +58,17 @@ def k2600_sweep '{
     points = fabs((end - start) / $3) + 1
 
     # sweep from k2600
-    cmd[i++] = "smua.trigger.source.action = smua.DISABLE"
-    cmd[i++] = sprintf("smua.trigger.source.linearv(%i,%i,%i)",start,end,points)
-    cmd[i++] = sprintf("smua.source.delay = %i",delay)
-    cmd[i++] = "smua.trigger.source.action = smua.ENABLE"
+    #cmd[i++] = "smua.trigger.source.action = smua.DISABLE"
+    #cmd[i++] = sprintf("smua.trigger.source.linearv(%i,%i,%i)",start,end,points)
+    #cmd[i++] = sprintf("smua.source.delay = %i",delay)
+    #cmd[i++] = "smua.trigger.source.action = smua.ENABLE"
     
-    for (i in cmd){
-        k2600_send(cmd)
-    }
+    
+    #for (i in cmd){
+    #    k2600_send(cmd[i])
+    #}
  
-    """
+    
     # manual loop sweep
     if (end > start)
         dir = 1
@@ -68,25 +81,27 @@ def k2600_sweep '{
         start += (step * dir)
     }
     k2600_von(end)
-    """
+    
 
 }'
 
 def k2600_von(voltage) '{
     local cmd
 
-    if(voltage < -200 || voltage > 200){
+    if(voltage < -5.1|| voltage > 5.1){
         p "invalid voltage " voltage
         exit
     }
 
     cmd[i++] = "smua.source.func = smua.OUTPUT_DCVOLTS"
     cmd[i++] = sprintf("smua.source.levelv = %f",voltage)
-    cmd[i++] = "smua.source.output = smua.OUTPUT_OUTPUT_ON"
+    #cmd[i++] = "smua.source.output = smua.OUTPUT_OUTPUT_ON"
+    cmd[i++] = "smua.source.output = 1"
     
     for (i in cmd){
-        k2600_send(cmd)
+        k2600_send(cmd[i])
     }  
+    KV_SET = voltage
 }'
 
 def k2600_voltage '{
@@ -102,8 +117,9 @@ def k2600_send(cmd) '{
     sock_put(K2600_ADD,msg)
 }'
 
-def k2600_get '{
-    return sock_get(K2600_ADD,"\r")
+def k2600_get() '{
+    return sock_get(K2600_ADD)
+    #return sock_get(K2600_ADD,"\r")
 }'
 
 """
@@ -113,19 +129,21 @@ k2600  2      Macro Counter
 """
 
 #def k2600_config(mne,key,unit,blah,chan) '{
-def k2600_config() '{
+def k2600_config(mne,key,unit,blah,chan) '{
 }'
 
 def k2600_cmd(mne,key) '{
     if(key == "counts"){
-        k2600_send("smua.measure.count = 1")
-        if(mne == KV_MNE){
-            k2600_send("smua.measure.v(smua.nvbuffer1)")
+        #k2600_send("smua.measure.count = 1")
+        if(mne == voltage){
+            #k2600_send("smua.measure.v(smua.nvbuffer1)")
+            return KV_SET
         }
-        if(mne == KI_MNE){
-            k2600_send("smua.measure.i(smua.nvbuffer1)")
+        if(mne == current){
+            return k2600_measure_i()
+            #k2600_send("smua.measure.i(smua.nvbuffer1)")
         }
-        k2600_send("print(smua.nvbuffer1)")
-        return k2600_get
+        #k2600_send("print(smua.nvbuffer1)")
+        #return k2600_get()
     }
 }'
