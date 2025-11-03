@@ -1,0 +1,3 @@
+timestamp,session_id,request_id,event,original_query,rewritten_query,route,confidence,method,agent,grounded,parser_passed,inferred,prompt_chars,sources,preview
+2025-11-03T01:02:00,20251103_010147_5d3274,REQ_7c189efc,user_query_received,write a code to change the temperature from 200K to 220K,,,,llm-rag,code,,,,,,
+2025-11-03T01:02:00,20251103_010147_5d3274,,error,,,,,,code,,,,,,
