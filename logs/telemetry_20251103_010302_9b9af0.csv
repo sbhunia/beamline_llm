@@ -1,0 +1,3 @@
+timestamp,session_id,request_id,event,original_query,rewritten_query,route,confidence,method,agent,grounded,parser_passed,inferred,prompt_chars,sources,preview
+2025-11-03T01:03:10,20251103_010302_9b9af0,REQ_f85aba13,user_query_received,what is the code to change temp from 220 k to 200 k,,,,llm-rag,code,,,,,,
+2025-11-03T01:03:10,20251103_010302_9b9af0,,error,,,,,,code,,,,,,

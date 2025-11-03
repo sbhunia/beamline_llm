@@ -1,0 +1,3 @@
+timestamp,session_id,request_id,event,original_query,rewritten_query,route,confidence,method,agent,grounded,parser_passed,inferred,prompt_chars,sources,preview
+2025-11-03T01:00:18,20251103_005959_5e7fa9,REQ_2b2a66c3,user_query_received,what is the code to change the temperature from 200 K to 220 K,,,,llm-rag,code,,,,,,
+2025-11-03T01:00:18,20251103_005959_5e7fa9,,error,,,,,,code,,,,,,

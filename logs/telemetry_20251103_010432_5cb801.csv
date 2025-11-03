@@ -1,0 +1,37 @@
+timestamp,session_id,request_id,event,original_query,rewritten_query,route,confidence,method,agent,grounded,parser_passed,inferred,prompt_chars,sources,preview
+2025-11-03T01:04:39,20251103_010432_5cb801,REQ_1a3d4b3c,user_query_received,"what is the code to change temp from 220 k to 200 k
+
+🛠️ CODE AGENT
+
+print ""error or timeout""
+
+Detail: error: name 'normalize_macro_query' is not defined",,,,llm-rag,code,,,,,,
+2025-11-03T01:04:39,20251103_010432_5cb801,REQ_1a3d4b3c,query_rewrite,"what is the code to change temp from 220 k to 200 k
+
+🛠️ CODE AGENT
+
+print ""error or timeout""
+
+Detail: error: name 'normalize_macro_query' is not defined","what is the code to change temperature from 220 k to 200 k 🛠️ CODE AGENT print ""error or timeout"" Detail: error: name 'normalize_macro_query' is not defined",code,,,code,,,,,,
+2025-11-03T01:04:53,20251103_010432_5cb801,REQ_ca3a1771,user_query_received,what is the code to change temp from 220 k to 200 k,,,,llm-rag,code,,,,,,
+2025-11-03T01:04:53,20251103_010432_5cb801,REQ_ca3a1771,query_rewrite,what is the code to change temp from 220 k to 200 k,what is the code to change temperature from 220 k to 200 k,code,,,code,,,,,,
+2025-11-03T01:04:54,20251103_010432_5cb801,REQ_1a3d4b3c,ui_return,"what is the code to change temp from 220 k to 200 k
+
+🛠️ CODE AGENT
+
+print ""error or timeout""
+
+Detail: error: name 'normalize_macro_query' is not defined","what is the code to change temperature from 220 k to 200 k 🛠️ CODE AGENT print ""error or timeout"" Detail: error: name 'normalize_macro_query' is not defined",,0.5685,,code,,False,,7342,"['spec Manual cambria.pdf', 'spec Manual cambria.pdf', 'spec Manual cambria.pdf', 'spec Manual cambria.pdf', 'spec Manual cambria.pdf', 'spec Manual cambria.pdf', 'spec Manual cambria.pdf', 'spec Manual cambria.pdf']",def teramp '  if ($# == 1) {  te $1  } else if ($# == 2) {  local _i _s1 _f1 _d1 _rtime _stime  _f1 = $1  _rtime = $2  _stime = _rtime < 500? 2:10  _s1 = TEMP_SP  _d1 = (_f1 - _s1) / _rtime * _stime  
+2025-11-03T01:04:54,20251103_010432_5cb801,REQ_ca3a1771,ui_return,what is the code to change temp from 220 k to 200 k,what is the code to change temperature from 220 k to 200 k,,0.5155,,code,,False,,7822,"['spec Manual cambria.pdf', 'spec Manual cambria.pdf', 'spec Manual cambria.pdf', 'spec Manual cambria.pdf', 'spec Manual cambria.pdf', 'spec Manual cambria.pdf', 'spec Manual cambria.pdf', 'spec Manual cambria.pdf']",te 200
+2025-11-03T01:05:09,20251103_010432_5cb801,REQ_d7902972,user_query_received,write a spec macro to change temp from 220 k to 200 k,,,,llm-rag,code,,,,,,
+2025-11-03T01:05:09,20251103_010432_5cb801,REQ_d7902972,query_rewrite,write a spec macro to change temp from 220 k to 200 k,spec macro to change temperature from 220 k to 200 k,code,,,code,,,,,,
+2025-11-03T01:05:10,20251103_010432_5cb801,REQ_d7902972,ui_return,write a spec macro to change temp from 220 k to 200 k,spec macro to change temperature from 220 k to 200 k,,0.5753,,code,,False,,7241,"['spec Manual cambria.pdf', 'spec Manual cambria.pdf', 'spec Manual cambria.pdf', 'spec Manual cambria.pdf', 'spec Manual cambria.pdf', 'spec Manual cambria.pdf', 'spec Manual cambria.pdf', 'spec Manual cambria.pdf']",teramp 200 500
+2025-11-03T01:05:21,20251103_010432_5cb801,REQ_9689e25e,user_query_received,code for temp change,,,,llm-rag,code,,,,,,
+2025-11-03T01:05:21,20251103_010432_5cb801,REQ_9689e25e,query_rewrite,code for temp change,SPEC macro example for code for temperature change,code,,,code,,,,,,
+2025-11-03T01:05:23,20251103_010432_5cb801,REQ_9689e25e,ui_return,code for temp change,SPEC macro example for code for temperature change,,0.6188,,code,,False,,6511,"['spec Manual cambria.pdf', 'spec Manual cambria.pdf', 'spec Manual cambria.pdf', 'spec Manual cambria.pdf', 'spec Manual cambria.pdf', 'spec Manual cambria.pdf', 'spec Manual cambria.pdf', 'spec Manual cambria.pdf']",def teramp '{ if ($# == 1) { te $1 } else if ($# == 2) { local _i _s1 _f1 _d1 _rtime _stime _f1 = $1 _rtime = $2 _stime = _rtime < 500? 2:10 _s1 = TEMP_SP _d1 = (_f1 - _s1) / _rtime * _stime qcomment 
+2025-11-03T01:05:33,20251103_010432_5cb801,REQ_f0044dcd,user_query_received,code for temp change from 200 k to 430 k,,,,llm-rag,code,,,,,,
+2025-11-03T01:05:33,20251103_010432_5cb801,REQ_f0044dcd,query_rewrite,code for temp change from 200 k to 430 k,code for temperature change from 200 k to 430 k,code,,,code,,,,,,
+2025-11-03T01:05:39,20251103_010432_5cb801,REQ_f0044dcd,ui_return,code for temp change from 200 k to 430 k,code for temperature change from 200 k to 430 k,,0.5673,,code,,False,,7239,"['spec Manual cambria.pdf', 'spec Manual cambria.pdf', 'spec Manual cambria.pdf', 'spec Manual cambria.pdf', 'spec Manual cambria.pdf', 'spec Manual cambria.pdf', 'spec Manual cambria.pdf', 'spec Manual cambria.pdf']",def teramp '  if ($# == 1) {  te $1  } else if ($# == 2) {  local _i _s1 _f1 _d1 _rtime _stime  _f1 = $1  _rtime = $2  _stime = _rtime < 500? 2:10  _s1 = TEMP_SP  _d1 = (_f1 - _s1) / _rtime * _stime  
+2025-11-03T01:05:51,20251103_010432_5cb801,REQ_31562e1e,user_query_received,code for temp change from 200 k to 245 k,,,,llm-rag,code,,,,,,
+2025-11-03T01:05:51,20251103_010432_5cb801,REQ_31562e1e,query_rewrite,code for temp change from 200 k to 245 k,code for temperature change from 200 k to 245 k,code,,,code,,,,,,
+2025-11-03T01:05:54,20251103_010432_5cb801,REQ_31562e1e,ui_return,code for temp change from 200 k to 245 k,code for temperature change from 200 k to 245 k,,0.5577,,code,,False,,7239,"['spec Manual cambria.pdf', 'spec Manual cambria.pdf', 'spec Manual cambria.pdf', 'spec Manual cambria.pdf', 'spec Manual cambria.pdf', 'spec Manual cambria.pdf', 'spec Manual cambria.pdf', 'spec Manual cambria.pdf']",def teramp '  if ($# == 1) {  te $1  } else if ($# == 2) {  local _i _s1 _f1 _d1 _rtime _stime  _f1 = $1  _rtime = $2  _stime = _rtime < 500? 2:10  _s1 = TEMP_SP  _d1 = (_f1 - _s1) / _rtime * _stime  
