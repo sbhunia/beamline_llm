@@ -9,6 +9,14 @@ from langchain_core.messages import SystemMessage, HumanMessage
 
 # -------- CONFIG --------
 MD_DIR = "markdown_docs_modified"
+# ============================================================
+# CONFIG
+# ============================================================
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MD_DIR = os.path.join(BASE_DIR, "md_files")
+FAISS_PATH = os.path.join(BASE_DIR, "faiss_index11")
+
 EMB_MODEL = "sentence-transformers/all-mpnet-base-v2"
 TOP_K = 8
 FAISS_PATH = "faiss_index11"

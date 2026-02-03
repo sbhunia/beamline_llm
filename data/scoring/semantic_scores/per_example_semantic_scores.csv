@@ -1,0 +1,61 @@
+index,model,user_query,hypothesis,reference,task,semantic_score,loop_match,angle_score,axis_score,ref_rot_est,hyp_rot_est,ref_count,hyp_count,ref_angles,hyp_angles,latency_ms,ref_temp,hyp_temp
+0,Llama3 Output,write a spec macro to rotate the sample 10 times,def rotatesample setor0 0 calcG for i 1 i 10 i inc or0 36 calcG,"def spin_xtal_phi
+for (i=0;i<10;i++) {
+    umv phi 360
+    sleep(1)
+    umv phi 0
+    sleep(1)
+}",rotate,0.24500000000000002,0.0,0.1,1.0,720.0,72.0,0.0,10.0,"[('phi', 360.0), ('phi', 0.0), ('phi', 360.0), ('phi', 0.0)]","[('or0', 36.0), ('unknown', 0.0), ('setor0', 0.0), ('or0', 36.0)]",,,
+0,CodeLlama Output,write a spec macro to rotate the sample 10 times,rotatesample setor0 0 calcG for i 1 i 10 i inc or0 36 calcG,"def spin_xtal_phi
+for (i=0;i<10;i++) {
+    umv phi 360
+    sleep(1)
+    umv phi 0
+    sleep(1)
+}",rotate,0.24500000000000002,0.0,0.1,1.0,720.0,72.0,0.0,10.0,"[('phi', 360.0), ('phi', 0.0), ('phi', 360.0), ('phi', 0.0)]","[('or0', 36.0), ('unknown', 0.0), ('setor0', 0.0), ('or0', 36.0)]",,,
+0,Mistral Output,write a spec macro to rotate the sample 10 times,rotatesample setor0 0 calcG for i 1 i 10 i inc or0 36 calcG,"def spin_xtal_phi
+for (i=0;i<10;i++) {
+    umv phi 360
+    sleep(1)
+    umv phi 0
+    sleep(1)
+}",rotate,0.24500000000000002,0.0,0.1,1.0,720.0,72.0,0.0,10.0,"[('phi', 360.0), ('phi', 0.0), ('phi', 360.0), ('phi', 0.0)]","[('or0', 36.0), ('unknown', 0.0), ('setor0', 0.0), ('or0', 36.0)]",,,
+0,Deepseek-1.5 Output,write a spec macro to rotate the sample 10 times,spec rotatesample10 setor0 0 for i 1 i 10 i incor sor0 36,"def spin_xtal_phi
+for (i=0;i<10;i++) {
+    umv phi 360
+    sleep(1)
+    umv phi 0
+    sleep(1)
+}",rotate,0.2,0.0,0.0,1.0,720.0,0.0,0.0,10.0,"[('phi', 360.0), ('phi', 0.0), ('phi', 360.0), ('phi', 0.0)]","[('setor0', 0.0)]",,,
+1,Llama3 Output,spec code to spin the crystal 3 times,for i 0 i 3 i setor0 setor1 sspin,"def spin_xtal_phi
+for (i=0;i<3;i++) {
+    umv phi 360
+    sleep(1)
+    umv phi 0
+    sleep(1)
+}",rotate,0.201875,0.0,0.004166666666666667,1.0,720.0,3.0,0.0,3.0,"[('phi', 360.0), ('phi', 0.0), ('phi', 360.0), ('phi', 0.0)]","[('setor0', 1.0)]",,,
+1,CodeLlama Output,spec code to spin the crystal 3 times,for i 0 i 3 i setor0 setor1 sspin,"def spin_xtal_phi
+for (i=0;i<3;i++) {
+    umv phi 360
+    sleep(1)
+    umv phi 0
+    sleep(1)
+}",rotate,0.201875,0.0,0.004166666666666667,1.0,720.0,3.0,0.0,3.0,"[('phi', 360.0), ('phi', 0.0), ('phi', 360.0), ('phi', 0.0)]","[('setor0', 1.0)]",,,
+1,Mistral Output,spec code to spin the crystal 3 times,for i 0 i 3 i setor0 setor1 sspin,"def spin_xtal_phi
+for (i=0;i<3;i++) {
+    umv phi 360
+    sleep(1)
+    umv phi 0
+    sleep(1)
+}",rotate,0.201875,0.0,0.004166666666666667,1.0,720.0,3.0,0.0,3.0,"[('phi', 360.0), ('phi', 0.0), ('phi', 360.0), ('phi', 0.0)]","[('setor0', 1.0)]",,,
+1,Deepseek-1.5 Output,spec code to spin the crystal 3 times,for i 0 i 3 i setor0 setor1 sspin,"def spin_xtal_phi
+for (i=0;i<3;i++) {
+    umv phi 360
+    sleep(1)
+    umv phi 0
+    sleep(1)
+}",rotate,0.201875,0.0,0.004166666666666667,1.0,720.0,3.0,0.0,3.0,"[('phi', 360.0), ('phi', 0.0), ('phi', 360.0), ('phi', 0.0)]","[('setor0', 1.0)]",,,
+2,Llama3 Output,how to change the temperature from 200 K to 220 K?,"def settemp if ! 1 print Usage settemp setpoint exit else local 1 1 1 if 1 TLOSP 1 THISP printfTemp limits are g to g.,TLOSP,THISP exit TEMPSP 1 settemp 180",settemp 220,temperature,0.0,,,,,,,,,,,220.0,180.0
+2,CodeLlama Output,how to change the temperature from 200 K to 220 K?,"def settemp if ! 1 print Usage settemp setpoint exit else local 1 1 1 if 1 TLOSP 1 THISP printfTemp limits are g to g.,TLOSP,THISP exit TEMPSP 1 settemp 180",settemp 220,temperature,0.0,,,,,,,,,,,220.0,180.0
+2,Mistral Output,how to change the temperature from 200 K to 220 K?,"def settemp if ! 1 print Usage settemp setpoint exit else local 1 1 1 if 1 TLOSP 1 THISP printfTemp limits are g to g.,TLOSP,THISP exit TEMPSP 1 settemp 180",settemp 220,temperature,0.0,,,,,,,,,,,220.0,180.0
+2,Deepseek-1.5 Output,how to change the temperature from 200 K to 220 K?,"def settemp if ! 1 print Usage settemp setpoint exit else local 1 1 1 if 1 TLOSP 1 THISP printfTemp limits are g to g.,TLOSP,THISP exit TEMPSP 1 settemp 180",settemp 220,temperature,0.0,,,,,,,,,,,220.0,180.0
