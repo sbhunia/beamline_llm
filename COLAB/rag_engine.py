@@ -1,5 +1,4 @@
 import os
-import torch
 from langchain_community.document_loaders import TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
@@ -7,13 +6,18 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import SystemMessage, HumanMessage
 
-# -------- CONFIG --------
-MD_DIR = "markdown_docs_modified"
+# ============================================================
+# CONFIG
+# ============================================================
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MD_DIR = os.path.join(BASE_DIR, "markdown_docs_modified")
+FAISS_PATH = os.path.join(BASE_DIR, "faiss_index11")
+
 EMB_MODEL = "sentence-transformers/all-mpnet-base-v2"
 TOP_K = 8
-FAISS_PATH = "faiss_index11"
 
-# Gemini key from environment (Streamlit Secrets)
+# Gemini key from Streamlit Secrets
 os.environ["GOOGLE_API_KEY"] = os.getenv("GOOGLE_API_KEY")
 
 # ============================================================
@@ -24,26 +28,25 @@ def build_or_load_vectorstore():
     embeddings = HuggingFaceEmbeddings(
         model_name=EMB_MODEL,
         model_kwargs={"device": "cpu"},
-        encode_kwargs={"batch_size": 32}
+        encode_kwargs={"batch_size": 32},
     )
 
     if os.path.exists(FAISS_PATH):
         return FAISS.load_local(
             FAISS_PATH,
             embeddings,
-            allow_dangerous_deserialization=True
+            allow_dangerous_deserialization=True,
         )
 
     documents = []
     for root, _, files in os.walk(MD_DIR):
         for file in files:
             if file.endswith(".md"):
-                loader = TextLoader(os.path.join(root, file), encoding="utf-8")
+                path = os.path.join(root, file)
+                loader = TextLoader(path, encoding="utf-8")
                 docs = loader.load()
                 for d in docs:
-                    d.metadata["source"] = os.path.relpath(
-                        os.path.join(root, file), MD_DIR
-                    )
+                    d.metadata["source"] = os.path.relpath(path, MD_DIR)
                 documents.extend(docs)
 
     splitter = RecursiveCharacterTextSplitter(
@@ -52,6 +55,12 @@ def build_or_load_vectorstore():
     )
 
     chunks = splitter.split_documents(documents)
+
+    if not chunks:
+        raise RuntimeError(
+            f"No markdown chunks found. Check that files exist in {MD_DIR}"
+        )
+
     vectorstore = FAISS.from_documents(chunks, embeddings)
     vectorstore.save_local(FAISS_PATH)
     return vectorstore
@@ -103,7 +112,9 @@ Do NOT invent steps or procedures.
     response = llm.invoke(
         [
             SystemMessage(content=system_prompt),
-            HumanMessage(content=f"Context:\n{context}\n\nQuestion:\n{query}")
+            HumanMessage(
+                content=f"Context:\n{context}\n\nQuestion:\n{query}"
+            ),
         ]
     )
 
