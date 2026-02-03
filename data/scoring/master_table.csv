@@ -1,0 +1,16 @@
+User Query,Llama3 Output,Llama3 Latency (ms),CodeLlama Output,CodeLlama Latency (ms),Mistral Output,Mistral Latency (ms),Deepseek-1.5 Output,Deepseek-1.5 Latency (ms),Original Answer
+write a spec macro to rotate the sample 10 times,def rotatesample setor0 0 calcG for i 1 i 10 i inc or0 36 calcG,2874.05,rotatesample setor0 0 calcG for i 1 i 10 i inc or0 36 calcG,1613.51,rotatesample setor0 0 calcG for i 1 i 10 i inc or0 36 calcG,1789.32,spec rotatesample10 setor0 0 for i 1 i 10 i incor sor0 36,1447.09,"def spin_xtal_phi
+for (i=0;i<10;i++) {
+    umv phi 360
+    sleep(1)
+    umv phi 0
+    sleep(1)
+}"
+spec code to spin the crystal 3 times,for i 0 i 3 i setor0 setor1 sspin,2750,for i 0 i 3 i setor0 setor1 sspin,2650,for i 0 i 3 i setor0 setor1 sspin,2800,for i 0 i 3 i setor0 setor1 sspin,2600,"def spin_xtal_phi
+for (i=0;i<3;i++) {
+    umv phi 360
+    sleep(1)
+    umv phi 0
+    sleep(1)
+}"
+how to change the temperature from 200 K to 220 K?,"def settemp if ! 1 print Usage settemp setpoint exit else local 1 1 1 if 1 TLOSP 1 THISP printfTemp limits are g to g.,TLOSP,THISP exit TEMPSP 1 settemp 180",503.73,"def settemp if ! 1 print Usage settemp setpoint exit else local 1 1 1 if 1 TLOSP 1 THISP printfTemp limits are g to g.,TLOSP,THISP exit TEMPSP 1 settemp 180",2378.21,"def settemp if ! 1 print Usage settemp setpoint exit else local 1 1 1 if 1 TLOSP 1 THISP printfTemp limits are g to g.,TLOSP,THISP exit TEMPSP 1 settemp 180",503.73,"def settemp if ! 1 print Usage settemp setpoint exit else local 1 1 1 if 1 TLOSP 1 THISP printfTemp limits are g to g.,TLOSP,THISP exit TEMPSP 1 settemp 180",2725.23,settemp 220

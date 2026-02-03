@@ -1,0 +1,61 @@
+index,model,hypothesis,reference_used,latency_ms,EM,BLEU,BLEU_p1,BLEU_p2,BLEU_p3,BLEU_p4,BLEU_BP,ROUGE-1_f1,ROUGE-2_f1,ROUGE-L_f1
+0,Llama3 Output,def rotatesample setor0 0 calcG for i 1 i 10 i inc or0 36 calcG,"def spin_xtal_phi
+for (i=0;i<10;i++) {
+    umv phi 360
+    sleep(1)
+    umv phi 0
+    sleep(1)
+}",,0.0,6.687403049772583e-10,0.2,0.0,0.0,0.0,1.0,0.20689655172413796,0,0.1379310344827586
+0,CodeLlama Output,rotatesample setor0 0 calcG for i 1 i 10 i inc or0 36 calcG,"def spin_xtal_phi
+for (i=0;i<10;i++) {
+    umv phi 360
+    sleep(1)
+    umv phi 0
+    sleep(1)
+}",,0.0,6.147881529523402e-10,0.14285714285714285,0.0,0.0,0.0,1.0,0.14285714285714285,0,0.07142857142857142
+0,Mistral Output,rotatesample setor0 0 calcG for i 1 i 10 i inc or0 36 calcG,"def spin_xtal_phi
+for (i=0;i<10;i++) {
+    umv phi 360
+    sleep(1)
+    umv phi 0
+    sleep(1)
+}",,0.0,6.147881529523402e-10,0.14285714285714285,0.0,0.0,0.0,1.0,0.14285714285714285,0,0.07142857142857142
+0,Deepseek-1.5 Output,spec rotatesample10 setor0 0 for i 1 i 10 i incor sor0 36,"def spin_xtal_phi
+for (i=0;i<10;i++) {
+    umv phi 360
+    sleep(1)
+    umv phi 0
+    sleep(1)
+}",,0.0,5.799150677101343e-10,0.15384615384615385,0.0,0.0,0.0,0.925961078642316,0.14814814814814817,0,0.07407407407407408
+1,Llama3 Output,for i 0 i 3 i setor0 setor1 sspin,"def spin_xtal_phi
+for (i=0;i<3;i++) {
+    umv phi 360
+    sleep(1)
+    umv phi 0
+    sleep(1)
+}",,0.0,3.9393281491353676e-10,0.2222222222222222,0.0,0.0,0.0,0.5737534207374327,0.17391304347826086,0,0.17391304347826086
+1,CodeLlama Output,for i 0 i 3 i setor0 setor1 sspin,"def spin_xtal_phi
+for (i=0;i<3;i++) {
+    umv phi 360
+    sleep(1)
+    umv phi 0
+    sleep(1)
+}",,0.0,3.9393281491353676e-10,0.2222222222222222,0.0,0.0,0.0,0.5737534207374327,0.17391304347826086,0,0.17391304347826086
+1,Mistral Output,for i 0 i 3 i setor0 setor1 sspin,"def spin_xtal_phi
+for (i=0;i<3;i++) {
+    umv phi 360
+    sleep(1)
+    umv phi 0
+    sleep(1)
+}",,0.0,3.9393281491353676e-10,0.2222222222222222,0.0,0.0,0.0,0.5737534207374327,0.17391304347826086,0,0.17391304347826086
+1,Deepseek-1.5 Output,for i 0 i 3 i setor0 setor1 sspin,"def spin_xtal_phi
+for (i=0;i<3;i++) {
+    umv phi 360
+    sleep(1)
+    umv phi 0
+    sleep(1)
+}",,0.0,3.9393281491353676e-10,0.2222222222222222,0.0,0.0,0.0,0.5737534207374327,0.17391304347826086,0,0.17391304347826086
+2,Llama3 Output,"def settemp if ! 1 print Usage settemp setpoint exit else local 1 1 1 if 1 TLOSP 1 THISP printfTemp limits are g to g.,TLOSP,THISP exit TEMPSP 1 settemp 180",settemp 220,,0.0,4.2379865741830546e-10,0.03225806451612903,0.0,0.0,0.0,1.0,0.06060606060606061,0,0.06060606060606061
+2,CodeLlama Output,"def settemp if ! 1 print Usage settemp setpoint exit else local 1 1 1 if 1 TLOSP 1 THISP printfTemp limits are g to g.,TLOSP,THISP exit TEMPSP 1 settemp 180",settemp 220,,0.0,4.2379865741830546e-10,0.03225806451612903,0.0,0.0,0.0,1.0,0.06060606060606061,0,0.06060606060606061
+2,Mistral Output,"def settemp if ! 1 print Usage settemp setpoint exit else local 1 1 1 if 1 TLOSP 1 THISP printfTemp limits are g to g.,TLOSP,THISP exit TEMPSP 1 settemp 180",settemp 220,,0.0,4.2379865741830546e-10,0.03225806451612903,0.0,0.0,0.0,1.0,0.06060606060606061,0,0.06060606060606061
+2,Deepseek-1.5 Output,"def settemp if ! 1 print Usage settemp setpoint exit else local 1 1 1 if 1 TLOSP 1 THISP printfTemp limits are g to g.,TLOSP,THISP exit TEMPSP 1 settemp 180",settemp 220,,0.0,4.2379865741830546e-10,0.03225806451612903,0.0,0.0,0.0,1.0,0.06060606060606061,0,0.06060606060606061
