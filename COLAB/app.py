@@ -205,82 +205,77 @@
 #     st.session_state.messages.append(
 #         {"role": "assistant", "content": answer}
 #     )
+
 from __future__ import annotations
 import streamlit as st
 import json
 import os
 from rag_engine import ask_rag 
+
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 st.set_page_config(page_title="QM2 Assistant", page_icon="🤖", layout="wide")
+
+# --- CUSTOM CSS ---
+st.markdown("""
+<style>
+    .stChatMessage { border-radius: 16px !important; padding: 16px !important; }
+    .agent-badge {
+        background: #ffecef; padding: 5px 10px; border-radius: 8px;
+        font-weight: 700; font-size: 12px; color: #b50f2b;
+        border: 1px solid #f9cbd2; display: inline-block; margin-bottom: 6px;
+    }
+</style>
+""", unsafe_allow_html=True)
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
 with st.sidebar:
-    st.title("Settings")
-
-    st.markdown("---")
-    st.markdown("### Evaluation File")
+    st.title("QM2 Settings")
+    if st.button("New Chat"):
+        st.session_state.messages = []
+        st.rerun()
     
-    benchmark_path = os.path.join(BASE_DIR, "benchmark.json") 
-
+    st.markdown("---")
+    benchmark_path = os.path.join(BASE_DIR, "faq_benchmark.json") 
     if os.path.exists(benchmark_path):
-        st.success("benchmark.json found")
+        st.success("✅ benchmark.json found")
     else:
-        st.warning(f"benchmark.json not found at {benchmark_path}")
+        st.warning("⚠️ benchmark.json not found")
 
-# ===============================
-# CHAT DISPLAY
-# ===============================
+# --- DISPLAY CHAT ---
 for m in st.session_state.messages:
     with st.chat_message(m["role"]):
         if m["role"] == "assistant":
             st.markdown("<span class='agent-badge'> RAG AGENT</span>", unsafe_allow_html=True)
             st.markdown(m["content"])
-            # Display sources if they exist in history
             if "sources" in m:
-                with st.expander("View Retrieved Sources"):
+                with st.expander("View Sources"):
                     for src in m["sources"]:
-                        st.write(f"**Source:** {src['source_file']}")
-                        st.caption(src['content'])
+                        st.caption(f"**{src['source_file']}**: {src['content'][:200]}...")
         else:
             st.markdown(m["content"])
 
-# ===============================
-# CHAT INPUT
-# ===============================
-user_query = st.chat_input("Type your question here…")
+# --- INPUT ---
+user_query = st.chat_input("Type your question here...")
 
 if user_query:
-    # 1. Show & Save User Query
     with st.chat_message("user"):
         st.markdown(user_query)
     st.session_state.messages.append({"role": "user", "content": user_query})
 
-    # 2. Call Backend
     with st.chat_message("assistant"):
         st.markdown("<span class='agent-badge'> RAG AGENT</span>", unsafe_allow_html=True)
-        
         with st.spinner("Gemini is thinking..."):
-            # This now returns {'answer': '...', 'retrieved': [...]}
             response_dict = ask_rag(user_query)
-            
             full_answer = response_dict["answer"]
             sources = response_dict["retrieved"]
-            
-        # 3. Display Answer
-        st.markdown(full_answer)
         
-        # 4. Display Sources (The "Ollama-style" source list)
+        st.markdown(full_answer)
         with st.expander("Retrieved Sources"):
             for item in sources:
-                st.write(f"**{item['source_file']}**")
+                st.write(f"📄 **{item['source_file']}**")
                 st.info(item['content'])
 
-    # 5. Save to History
-    st.session_state.messages.append({
-        "role": "assistant", 
-        "content": full_answer,
-        "sources": sources
-    })
+    st.session_state.messages.append({"role": "assistant", "content": full_answer, "sources": sources})
