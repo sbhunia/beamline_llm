@@ -1,9 +1,9 @@
 streamlit
-torch
-langchain-community
-langchain-text-splitters
-sentence-transformers
-faiss-cpu
-pypdf
-langchain-huggingface
+langchain
 langchain-google-genai
+langchain-community
+langchain-huggingface
+faiss-cpu
+python-dotenv
+sentence-transformers
+rouge-score

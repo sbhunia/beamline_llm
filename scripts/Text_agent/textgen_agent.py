@@ -70,7 +70,7 @@ def ask_rag(query: str):
         max_retries=5,
     )
 
-    system_prompt = system_prompt = """
+    system_prompt = """
         You are a technical assistant for a synchrotron beamline control system.
 
         Use ONLY the provided context.
