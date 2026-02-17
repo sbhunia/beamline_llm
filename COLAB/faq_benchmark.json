@@ -1,0 +1,85 @@
+[
+  {
+    "question": "How is the measurement time and what is the angle step size when rotating the single crystal?",
+    "ground_truth": {
+      "fields": {
+        "angle_step_size": "0.1 degree",
+        "exposure_per_frame": "0.1 seconds",
+        "total_collection_time": "18 minutes",
+        "max_total_time_with_overhead": "<30 minutes"
+      },
+      "full_answer": "The typical setup uses continuous rotation with 0.1 degree angular integrations and approximately 0.1 seconds per frame. Full data collection is about 18 minutes, and including motor overhead, collecting one comprehensive dataset at one temperature in less than 30 minutes is reasonable."
+    }
+  },
+  {
+    "question": "What is the photon energy and Qmax for 3D-PDF experiment?",
+    "ground_truth": {
+      "fields": {
+        "max_energy": "52 keV",
+        "min_sample_detector_distance": "380 mm",
+        "two_theta_max": "<45 degrees",
+        "qmax": "<20 inv A"
+      },
+      "full_answer": "QM2 has a maximum operating energy of 52 keV. The minimum sample-to-detector distance is approximately 380 mm, giving a two-theta max less than 45 degrees and a QMax of approximately less than 20 inverse Angstroms."
+    }
+  },
+  {
+    "question": "What is the temperature range available for 3D-dPDF? We are requesting cryostream-like temperature region (100~500 K), but it would be intesting to know if any lower or higher tempearture setup accessible.",
+    "ground_truth": {
+      "fields": {
+        "helium_range": "13K to 180K",
+        "nitrogen_range": "95K to 500K"
+      },
+      "full_answer": "The gas cryocooler operates using helium or nitrogen. With helium, the temperature range is approximately 13K to 180K. With nitrogen, the range is approximately 95K to 500K."
+    }
+  },
+  {
+    "question": "What is the suitable single crystal size in volume and dimension lengths so that it can be covered by the beam when rotating (not too large or too small)",
+    "ground_truth": {
+      "fields": {
+        "beam_height": "200 microns",
+        "beam_width": "1 mm",
+        "size_rule": "< one attenuation length in at least 2 dimensions"
+      },
+      "full_answer": "The beam is approximately 200 microns tall and 1 mm wide. Generally, crystals should be smaller than one attenuation length in at least two dimensions to maintain constant scattering volume while rotating."
+    }
+  },
+  {
+    "question": "Where is my data?",
+    "ground_truth": {
+      "fields": {
+        "raw_location": "id4b",
+        "processed_location": "id4baux"
+      },
+      "full_answer": "The raw data is stored at id4b, and after processing, the data can be found in id4baux."
+    }
+  },
+  {
+    "question": "How to transfer the data?",
+    "ground_truth": {
+      "fields": {
+        "method": "globus"
+      },
+      "full_answer": "You should use Globus to transfer your data."
+    }
+  },
+  {
+    "question": "How to recover if the computer fail?",
+    "ground_truth": {
+      "fields": {
+        "action": "Talk to the beamline scientist"
+      },
+      "full_answer": "If the computer fails, talk to the beamline scientist."
+    }
+  },
+  {
+    "question": "Can I run thin-film samples at the beamline? What is the minimum thickness of the sample that can be examined?",
+    "ground_truth": {
+      "fields": {
+        "allowed": "Yes",
+        "minimum_thickness": "3 nm"
+      },
+      "full_answer": "Yes, thin-film samples can be run at the beamline. The thinnest sample examined so far has been 3 nm."
+    }
+  }
+]
