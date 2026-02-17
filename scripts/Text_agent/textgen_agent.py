@@ -1,198 +1,120 @@
-cleafrom __future__ import annotations
-
+from __future__ import annotations
 import os
-import statistics
-from typing import List, Tuple, Dict, Any
 
+from langchain_community.document_loaders import TextLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
-from langchain_core.documents import Document
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_ollama import ChatOllama
+from langchain_core.messages import SystemMessage, HumanMessage
 
-from scripts.Text_agent.load_md import load_markdown_docs
-from scripts.Text_agent.prompt_template import BASE_PROMPT_TEXT
+MD_DIR = "/home/vallurs/research/data/md_files"
 
+EMB_MODEL = "sentence-transformers/all-mpnet-base-v2"
+TOP_K = 5
 
-# =====================================================
-# Config
-# =====================================================
-
-OLLAMA_BASE = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
-MODEL = "mistral:instruct"
-TOP_K = 8
-
-_VS: FAISS | None = None
-
-
-# =====================================================
-# Vector Store
-# =====================================================
-
-def _build_vs() -> FAISS:
-    global _VS
-    if _VS is not None:
-        return _VS
-
-    docs: List[Document] = load_markdown_docs()
+def build_vectorstore():
+    print("Rebuilding FAISS from scratch...")
 
     embeddings = HuggingFaceEmbeddings(
-        model_name="sentence-transformers/all-mpnet-base-v2"
+        model_name=EMB_MODEL,
+        model_kwargs={"device": "cpu"},
+        encode_kwargs={"batch_size": 32},
     )
 
-    _VS = FAISS.from_documents(docs, embeddings)
-    return _VS
+    documents = []
 
+    for root, _, files in os.walk(MD_DIR):
+        for file in files:
+            if file.endswith(".md"):
+                full_path = os.path.join(root, file)
 
-# =====================================================
-# Retrieval
-# =====================================================
+                loader = TextLoader(full_path, encoding="utf-8")
+                docs = loader.load()
 
-def _search(
-    query: str,
-    vs: FAISS,
-    k: int = TOP_K,
-) -> Tuple[List[Tuple[Document, float]], float]:
+                for d in docs:
+                    d.metadata["source_file"] = file
+                    d.metadata["full_path"] = full_path
 
-    hits = vs.similarity_search_with_score(query, k=k)
+                documents.extend(docs)
 
-    priority = {
-        "procedure": 0,
-        "command": 1,
-        "table": 2,
-        "markdown": 3,
-    }
-
-    hits = sorted(
-        hits,
-        key=lambda x: (
-            priority.get(x[0].metadata.get("kind", "markdown"), 9),
-            x[1],
-        ),
+    splitter = RecursiveCharacterTextSplitter(
+        chunk_size=400,
+        chunk_overlap=200,
     )
 
-    scores = [float(s) for _, s in hits]
-    avg = statistics.mean(scores) if scores else None
-    confidence = round(1 / (1 + max(avg, 1e-6)), 4) if avg else 0.0
+    chunks = splitter.split_documents(documents)
 
-    return hits, confidence
+    print("Total chunks created:", len(chunks))
 
+    vectorstore = FAISS.from_documents(chunks, embeddings)
 
-# =====================================================
-# LLM (ONLY used for non-extractive answers)
-# =====================================================
-
-def _call_llm(prompt: str) -> str:
-    llm = ChatOllama(
-        model=MODEL,
-        base_url=OLLAMA_BASE,
-        temperature=0.2,
-    )
-
-    out = llm.invoke([{"role": "user", "content": prompt}])
-    return (getattr(out, "content", "") or "").strip()
+    return vectorstore
 
 
-# =====================================================
-# Main Entry
-# =====================================================
+VECTORSTORE = build_vectorstore()
 
-def run_text_ui(question: str) -> Dict[str, Any]:
-    query = (question or "").strip().lower()
+def ask_rag(query: str):
 
-    vs = _build_vs()
-    hits, confidence = _search(query, vs)
-
-    # -------------------------------------------------
-    # DOCUMENT-DRIVEN INTENT DETECTION (KEY FIX)
-    # -------------------------------------------------
-
-    procedure_hits: List[Tuple[Document, float]] = [
-        (d, s) for d, s in hits
-        if d.metadata.get("kind") == "procedure"
-    ]
-
-    lookup_hits: List[Tuple[Document, float]] = [
-        (d, s) for d, s in hits
-        if any(tok in d.page_content.lower() for tok in ["ip", "address:", "port", "password"])
-    ]
-
-    # -------------------------------------------------
-    # MODE SELECTION (NO QUERY KEYWORDS)
-    # -------------------------------------------------
-
-    # PROCEDURE MODE
-    if procedure_hits:
-        filtered_hits = procedure_hits
-
-    # LOOKUP MODE (FACT EXTRACTION)
-    elif lookup_hits:
-        filtered_hits = lookup_hits
-
-    # FALLBACK (EXPLANATION)
-    else:
-        filtered_hits = hits
-
-    # -------------------------------------------------
-    # LOOKUP MODE → STRICT EXTRACTIVE ANSWER
-    # -------------------------------------------------
-
-    if filtered_hits is lookup_hits:
-        answer = "Not found in the provided documents."
-
-        for d, _ in filtered_hits:
-            for line in d.page_content.splitlines():
-                l = line.lower()
-                if any(k in l for k in ["ip address", "ip:", "address:"]):
-                    answer = line.strip()
-                    break
-            if answer != "Not found in the provided documents.":
-                break
-
-        return {
-            "answer": answer,
-            "confidence": confidence,
-            "retrieved": [
-                {
-                    "source": d.metadata.get("source"),
-                    "kind": d.metadata.get("kind"),
-                    "score": float(s),
-                    "snippet": d.page_content,
-                }
-                for d, s in filtered_hits[:TOP_K]
-            ],
-        }
-
-    # -------------------------------------------------
-    # GENERATIVE MODE (PROCEDURE OR EXPLANATION)
-    # -------------------------------------------------
+    results = VECTORSTORE.similarity_search_with_score(query, k=TOP_K)
 
     context = "\n\n---\n\n".join(
-        f"[Source: {d.metadata.get('source')} | Kind: {d.metadata.get('kind')}]\n"
-        f"{d.page_content}"
-        for d, _ in filtered_hits[:TOP_K]
+        f"[Source: {doc.metadata.get('source_file')}]\n"
+        f"{doc.page_content}"
+        for doc, _ in results
     )
 
-    prompt = f"""{BASE_PROMPT_TEXT}
+    llm = ChatOllama(
+        model="mistral:instruct",
+        temperature=0.0,
+        max_retries=5,
+    )
 
-Context:
-{context}
+    system_prompt = system_prompt = """
+        You are a technical assistant for a synchrotron beamline control system.
 
-Question:
-{question}
-"""
+        Use ONLY the provided context.
 
-    answer = _call_llm(prompt)
+        RULES:
+
+        Provide a direct answer to the question.
+
+        Do not include information or tables that are unrelated to the specific question asked.
+
+        If the context contains direct instructions → list only what is available.
+
+        For multiple steps → list all steps clearly AND preserve the EXACT order they appear.
+
+        If the context contains related links but no steps → explain available info and point to links.
+
+        If a table contains the specific answer requested → reproduce the full table.
+
+        IMPORTANT:
+
+        Do NOT reorder or reinterpret steps.
+
+        If nothing relevant is present at all, say: Not found in the provided documents.
+
+        Do NOT invent steps or procedures.
+        """
+
+    response = llm.invoke(
+        [
+            SystemMessage(content=system_prompt),
+            HumanMessage(content=f"Context:\n{context}\n\nQuestion:\n{query}")
+        ]
+    )
 
     return {
-        "answer": answer or "Not found in the provided documents.",
-        "confidence": confidence,
+        "answer": response.content.strip(),
         "retrieved": [
             {
-                "source": d.metadata.get("source"),
-                "kind": d.metadata.get("kind"),
-                "score": float(s),
-                "snippet": d.page_content,
+                "content": doc.page_content,
+                "score": float(score),
+                "source_file": doc.metadata.get("source_file"),
+                "full_path": doc.metadata.get("full_path"),
             }
-            for d, s in filtered_hits[:TOP_K]
-        ],
+            for doc, score in results
+        ]
     }
+

@@ -1,5 +1,4 @@
 import os
-import torch
 from langchain_community.document_loaders import TextLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
@@ -26,8 +25,6 @@ os.environ["GOOGLE_API_KEY"] = os.getenv("GOOGLE_API_KEY")
 
 # ============================================================
 # BUILD / LOAD VECTORSTORE
-# ============================================================
-
 def build_or_load_vectorstore():
     embeddings = HuggingFaceEmbeddings(
         model_name=EMB_MODEL,
@@ -56,7 +53,7 @@ def build_or_load_vectorstore():
 
     splitter = RecursiveCharacterTextSplitter(
         chunk_size=250,
-        chunk_overlap=100,
+        chunk_overlap=150,
     )
 
     chunks = splitter.split_documents(documents)
@@ -67,9 +64,6 @@ def build_or_load_vectorstore():
 
 VECTORSTORE = build_or_load_vectorstore()
 
-# ============================================================
-# QUERY FUNCTION (SYSTEM PROMPT PRESERVED)
-# ============================================================
 
 def ask_rag(query: str) -> str:
     results = VECTORSTORE.similarity_search_with_score(query, k=TOP_K)
