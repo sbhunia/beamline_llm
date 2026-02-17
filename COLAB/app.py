@@ -209,39 +209,26 @@ from __future__ import annotations
 import streamlit as st
 import json
 import os
-
-# Import your modified Gemini backend
 from rag_engine import ask_rag 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
-# ===============================
-# PAGE CONFIG & CSS (Keep your existing styles)
-# ===============================
 st.set_page_config(page_title="QM2 Assistant", page_icon="🤖", layout="wide")
 
-# ... (Include your CSS block here) ...
-
-# ===============================
-# SESSION STATE
-# ===============================
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# ===============================
-# SIDEBAR (Improved History)
-# ===============================
 with st.sidebar:
     st.title("Settings")
-    if st.button("Clear Chat"):
-        st.session_state.messages = []
-        st.rerun()
-    
+
     st.markdown("---")
     st.markdown("### Evaluation File")
-    # This checks if your benchmark file is present for testing
-    if os.path.exists("benchmark.json"):
-        st.success(" benchmark.json found")
+    
+    benchmark_path = os.path.join(BASE_DIR, "benchmark.json") 
+
+    if os.path.exists(benchmark_path):
+        st.success("benchmark.json found")
     else:
-        st.warning("benchmark.json not found")
+        st.warning(f"benchmark.json not found at {benchmark_path}")
 
 # ===============================
 # CHAT DISPLAY
