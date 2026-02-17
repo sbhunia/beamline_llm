@@ -238,10 +238,10 @@ with st.sidebar:
     st.markdown("---")
     st.markdown("### Evaluation File")
     # This checks if your benchmark file is present for testing
-    if os.path.exists("faq_benchmark.json"):
+    if os.path.exists("benchmark.json"):
         st.success(" benchmark.json found")
     else:
-        st.warning("⚠️ benchmark.json not found")
+        st.warning("benchmark.json not found")
 
 # ===============================
 # CHAT DISPLAY
