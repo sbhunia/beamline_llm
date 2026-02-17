@@ -2,21 +2,21 @@ from __future__ import annotations
 
 import sys
 import os
+import json
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as _TOError
 
-# Add project root to Python path
 PROJECT_ROOT = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 if PROJECT_ROOT not in sys.path:
     sys.path.insert(0, PROJECT_ROOT)
 
 import streamlit as st
+from textgen_agent import ask_rag
+from sentence_transformers import SentenceTransformer
+from sklearn.metrics.pairwise import cosine_similarity
+from rouge_score import rouge_scorer
 
-from scripts.Text_agent.textgen_agent import run_text_ui
 
-
-# ---------------- Timeout wrapper ----------------
-
-def run_with_timeout(func, *args, timeout_s: int = 60, **kwargs):
+def run_with_timeout(func, *args, timeout_s: int = 120, **kwargs):
     with ThreadPoolExecutor(max_workers=1) as ex:
         fut = ex.submit(func, *args, **kwargs)
         try:
@@ -27,7 +27,29 @@ def run_with_timeout(func, *args, timeout_s: int = 60, **kwargs):
             return None, f"error: {e}"
 
 
-# ---------------- Page config ----------------
+
+@st.cache_resource
+def load_embedder():
+    return SentenceTransformer("sentence-transformers/all-mpnet-base-v2")
+
+embed_model = load_embedder()
+
+
+def compute_similarity(a, b):
+    emb1 = embed_model.encode([a])
+    emb2 = embed_model.encode([b])
+    return float(cosine_similarity(emb1, emb2)[0][0])
+
+
+rouge = rouge_scorer.RougeScorer(['rougeL'], use_stemmer=True)
+
+
+@st.cache_data
+def load_benchmark():
+    with open("faq_benchmark.json", "r") as f:
+        return json.load(f)
+
+benchmark = load_benchmark()
 
 st.set_page_config(
     page_title="QM2 Text Assistant",
@@ -35,87 +57,41 @@ st.set_page_config(
     layout="wide",
 )
 
-# ---------------- Header ----------------
+st.markdown("<h2 style='text-align:center;'>QM2 Documentation Assistant</h2>", unsafe_allow_html=True)
+st.markdown("<p style='text-align:center;color:#666;'>Answers are generated from markdown documentation</p>", unsafe_allow_html=True)
 
-st.markdown(
-    """
-<style>
-.block-container { padding-top: 80px !important; }
-.agent-badge {
-    background: #eef2ff;
-    padding: 6px 12px;
-    border-radius: 8px;
-    font-weight: 700;
-    font-size: 12px;
-    color: #3730a3;
-    border: 1px solid #c7d2fe;
-}
-.warn {
-    background: #fff4e5;
-    border-left: 4px solid #ff9800;
-    padding: 10px 14px;
-    color: #8a4b00;
-    border-radius: 8px;
-    margin-top: 10px;
-}
-</style>
-""",
-    unsafe_allow_html=True,
-)
 
-st.markdown(
-    "<h2 style='text-align:center;'>QM2 Documentation Assistant</h2>",
-    unsafe_allow_html=True,
-)
-st.markdown(
-    "<p style='text-align:center;color:#666;'>Answers are generated from markdown documentation</p>",
-    unsafe_allow_html=True,
-)
-
-# ---------------- Session state ----------------
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
 
-# ---------------- Sidebar ----------------
-
-with st.sidebar:
-    if st.button("New chat"):
-        st.session_state.messages = []
-        st.rerun()
-
-    st.markdown("### Recent questions")
-    for i, m in enumerate(
-        [x for x in st.session_state.messages if x["role"] == "user"][-5:][::-1],
-        1,
-    ):
-        label = m["content"][:30] + ("…" if len(m["content"]) > 30 else "")
-        if st.button(label, key=f"hist_{i}"):
-            st.session_state.messages.append(
-                {"role": "user", "content": m["content"]}
-            )
-            st.rerun()
-
-
-# ---------------- Replay history ----------------
-
 for m in st.session_state.messages:
     with st.chat_message(m["role"]):
-        if m["role"] == "assistant":
-            st.markdown(
-                "<span class='agent-badge'> TEXT AGENT</span>",
-                unsafe_allow_html=True,
-            )
         st.markdown(m["content"])
+        if "eval_entries" in m:
+            for eval_item in m["eval_entries"]:
+                st.markdown("---")
+                st.markdown(f"### Evaluation for: {eval_item['question']}")
+                st.markdown(f"**Field Match Accuracy:** {eval_item['field_accuracy']:.2f}")
+                
+                if eval_item['field_accuracy'] == 1.0:
+                    st.success("All required fields present — correct")
+                elif eval_item['field_accuracy'] > 0:
+                    st.warning("Partially correct — some required fields missing")
+                    for mf in eval_item['missing_fields']:
+                        st.markdown(f"- {mf}")
+                else:
+                    st.error("Required information not found in answer")
 
+                st.markdown(f"**Cosine Similarity:** {eval_item['similarity_score']:.4f}")
+                st.markdown(f"**ROUGE-L (F1):** {eval_item['rouge_l']:.4f}")
 
-# ---------------- Chat input ----------------
 
 user_query = st.chat_input("Ask about procedures, commands, or setup…")
 
 if user_query:
-    # Show user message
+
     with st.chat_message("user"):
         st.markdown(user_query)
 
@@ -123,40 +99,87 @@ if user_query:
         {"role": "user", "content": user_query}
     )
 
-    # Call text agent
-    result, err = run_with_timeout(run_text_ui, user_query)
+    result, err = run_with_timeout(ask_rag, user_query)
 
     with st.chat_message("assistant"):
-        st.markdown(
-            "<span class='agent-badge'> TEXT AGENT</span>",
-            unsafe_allow_html=True,
-        )
 
         if err or not result:
             assistant_msg = "Not found in the provided documents."
             st.markdown(assistant_msg)
-            st.markdown(
-                f"<div class='warn'>Detail: {err or 'unknown error'}</div>",
-                unsafe_allow_html=True,
-            )
-        else:
-            assistant_msg = result.get("answer") or "Not found in the provided documents."
-            st.markdown(assistant_msg)
+            st.session_state.messages.append({"role": "assistant", "content": assistant_msg})
 
-            # 🔍 Retrieved chunks debug panel
+            if err:
+                st.error(err)
+
+        else:
+            assistant_msg = result["answer"]
+            st.markdown(assistant_msg)
+            
+            eval_entries_for_storage = []
+
+            matched_entries = []
+            for item in benchmark:
+                sim = compute_similarity(user_query, item["question"])
+                if sim > 0.85:
+                    matched_entries.append(item)
+
+            for gt_entry in matched_entries:
+                st.markdown("---")
+                st.markdown(f"### Evaluation for: {gt_entry['question']}")
+
+                gt_fields = gt_entry["ground_truth"]["fields"]
+                gt_full_answer = gt_entry["ground_truth"]["full_answer"]
+
+                gt_values = list(gt_fields.values())
+                assistant_lower = assistant_msg.lower()
+
+                matched = 0
+                missing_fields = []
+                for value in gt_values:
+                    if value.lower() in assistant_lower:
+                        matched += 1
+                    else:
+                        missing_fields.append(value)
+
+                field_accuracy = matched / len(gt_values)
+                st.markdown(f"**Field Match Accuracy:** {field_accuracy:.2f}")
+
+                if field_accuracy == 1.0:
+                    st.success("All required fields present — correct")
+                elif field_accuracy > 0:
+                    st.warning("Partially correct — some required fields missing")
+                    st.markdown("**Missing fields:**")
+                    for mf in missing_fields:
+                        st.markdown(f"- {mf}")
+                else:
+                    st.error("Required information not found in answer")
+
+                # -------- Cosine Similarity --------
+                similarity_score = compute_similarity(assistant_msg, gt_full_answer)
+                st.markdown(f"**Cosine Similarity:** {similarity_score:.4f}")
+
+                # -------- ROUGE-L --------
+                rouge_scores = rouge.score(gt_full_answer, assistant_msg)
+                rouge_l = rouge_scores["rougeL"].fmeasure
+                st.markdown(f"**ROUGE-L (F1):** {rouge_l:.4f}")
+                
+                eval_entries_for_storage.append({
+                    "question": gt_entry['question'],
+                    "field_accuracy": field_accuracy,
+                    "missing_fields": missing_fields,
+                    "similarity_score": similarity_score,
+                    "rouge_l": rouge_l
+                })
+
             retrieved = result.get("retrieved", [])
             if retrieved:
-                with st.expander(f"🔎 Retrieved chunks ({len(retrieved)})"):
+                with st.expander(f" Retrieved chunks ({len(retrieved)})"):
                     for i, r in enumerate(retrieved, 1):
-                        st.markdown(
-                            f"""
-**[{i}] Source:** `{r['source']}`  
-**Kind:** `{r['kind']}`  
-**Score:** `{r['score']:.4f}`
-{r['snippet']}
-"""
-                        )
+                        st.markdown(f"**Chunk {i} | Score: {r['score']:.4f}** \nFile: `{r.get('source_file')}`")
+                        st.code(r["content"])
 
-    st.session_state.messages.append(
-        {"role": "assistant", "content": assistant_msg}
-    )
+            st.session_state.messages.append({
+                "role": "assistant", 
+                "content": assistant_msg,
+                "eval_entries": eval_entries_for_storage
+            })
