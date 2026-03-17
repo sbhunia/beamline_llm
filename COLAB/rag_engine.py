@@ -500,7 +500,7 @@ def ask_rag(query: str) -> str:
     )
 
     llm = ChatGoogleGenerativeAI(
-        model="gemini-2.5-pro",
+        model="gemini-2.5-flash",
         temperature=0.3,
         max_retries=5,
     )
