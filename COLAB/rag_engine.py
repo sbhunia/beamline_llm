@@ -125,8 +125,10 @@ from langchain_core.messages import SystemMessage, HumanMessage
 
 # 1. API & PATH CONFIG
 load_dotenv()
-api_key = st.secrets.get("GOOGLE_API_KEY") or os.getenv("GOOGLE_API_KEY")
-os.environ["GOOGLE_API_KEY"] = api_key
+if "GOOGLE_API_KEY" in st.secrets:
+    os.environ["GOOGLE_API_KEY"] = st.secrets["GOOGLE_API_KEY"]
+else:
+    st.error("API key not found in Streamlit secrets")
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MD_DIR = os.path.join(BASE_DIR, "md_files")
@@ -186,7 +188,7 @@ def ask_rag(query: str):
 
     # Gemini Model Setup (with max_retries as requested)
     llm = ChatGoogleGenerativeAI(
-        model="gemini-1.5-pro",
+        model="gemini-1.5-flash",
         temperature=TEMPERATURE,
         max_retries=5
     )
