@@ -5,3 +5,28 @@ __pycache__/
 .venv/
 __pycache__/
 *.py[cod]
+
+# Models
+*.pt
+*.bin
+*.safetensors
+
+# FAISS
+*.faiss
+*.pkl
+
+# Checkpoints
+checkpoint-*/
+
+# Large training artifacts
+optimizer.pt
+trainer_state.json
+
+# Excel results
+*.xlsx
+
+# Data
+data/
+Distillation_claude/
+text-agent-lora/
+codellama-rawtext-qlora/

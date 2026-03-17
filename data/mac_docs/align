@@ -1,9 +1,0 @@
-dscan chi -0.3 0.3 30 1
-umv chi pl_xMAX
-dscan th -0.3 0.3 30 1
-umv th pl_xMAX
-dscan chi -0.08 0.08 32 1
-umv chi pl_COM
-dscan th -0.08 0.08 32 1
-umv th pl_xMAX
-wh

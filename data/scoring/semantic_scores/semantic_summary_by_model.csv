@@ -1,5 +1,0 @@
-model,mean_semantic_score,median_semantic_score,avg_latency_ms,n_examples
-Llama3 Output,0.14895833333333333,0.201875,,3
-CodeLlama Output,0.14895833333333333,0.201875,,3
-Mistral Output,0.14895833333333333,0.201875,,3
-Deepseek-1.5 Output,0.13395833333333332,0.2,,3
