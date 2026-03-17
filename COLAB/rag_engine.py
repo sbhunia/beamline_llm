@@ -6,19 +6,12 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_core.messages import SystemMessage, HumanMessage
 
-# -------- CONFIG --------
-MD_DIR = "markdown_docs_modified"
-# ============================================================
-# CONFIG
-# ============================================================
-
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 MD_DIR = os.path.join(BASE_DIR, "md_files")
 FAISS_PATH = os.path.join(BASE_DIR, "faiss_index11")
 
 EMB_MODEL = "sentence-transformers/all-mpnet-base-v2"
 TOP_K = 8
-FAISS_PATH = "faiss_index11"
 
 # Gemini key from environment (Streamlit Secrets)
 os.environ["GOOGLE_API_KEY"] = os.getenv("GOOGLE_API_KEY")
@@ -74,7 +67,7 @@ def ask_rag(query: str) -> str:
     )
 
     llm = ChatGoogleGenerativeAI(
-        model="gemini-1.5-flash-latest",
+        model="gemini-2.0-flash",
         temperature=0.5,
         max_retries=5,
     )
@@ -109,7 +102,7 @@ Do NOT invent steps or procedures.
         ]
     )
 
-    return response.content[0]["text"]
+    return response.content
 
 
 
