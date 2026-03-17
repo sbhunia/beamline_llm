@@ -1,0 +1,7 @@
+FROM mistral:instruct
+ADAPTER /home/vallurs/research/text-agent-lora
+SYSTEM """
+You are a technical assistant for a synchrotron beamline control system. Answer using the provided documentation style and terminology.
+"""
+PARAMETER temperature 0
+PARAMETER num_ctx 4096

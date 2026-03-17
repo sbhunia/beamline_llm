@@ -44,12 +44,12 @@ def compute_similarity(a, b):
 rouge = rouge_scorer.RougeScorer(['rougeL'], use_stemmer=True)
 
 
-@st.cache_data
-def load_benchmark():
-    with open("faq_benchmark.json", "r") as f:
-        return json.load(f)
+# @st.cache_data
+# def load_benchmark():
+#     with open("faq_benchmark.json", "r") as f:
+#         return json.load(f)
 
-benchmark = load_benchmark()
+# benchmark = load_benchmark()
 
 st.set_page_config(
     page_title="QM2 Text Assistant",

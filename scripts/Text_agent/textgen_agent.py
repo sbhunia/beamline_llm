@@ -117,4 +117,3 @@ def ask_rag(query: str):
             for doc, score in results
         ]
     }
-

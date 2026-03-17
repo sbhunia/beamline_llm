@@ -1,0 +1,162 @@
+[
+  {
+    "instruction": "How should I select a temperature sensor for a cryogenic experiment controlled by the Model 336?",
+    "response": "Sensor selection should begin with the operating temperature range. The sensor must provide reliable calibration over the entire temperature span of the experiment. Sensitivity is especially important at low temperatures, where small changes in temperature must produce measurable electrical changes. Environmental conditions such as vibration, electromagnetic interference, vacuum compatibility, and radiation exposure must also be considered. The mechanical package must allow strong thermal contact with the sample or mounting surface. Finally, confirm that an appropriate calibration curve is available or can be uploaded into the controller."
+  },
+  {
+    "instruction": "Why is thermal conductivity important in temperature control design?",
+    "response": "Thermal conductivity determines how effectively heat moves between the heater, the sample, and the temperature sensor. High thermal conductivity improves feedback speed and control responsiveness. Poor thermal conductivity creates temperature gradients and delays between heater action and sensor measurement. This delay increases control instability and may require conservative PID settings."
+  },
+  {
+    "instruction": "What is thermal lag and how does it affect PID tuning?",
+    "response": "Thermal lag is the delay between heater power changes and the resulting temperature change measured at the sensor. Systems with high thermal lag respond slowly to control corrections. If PID gains are too aggressive in a high-lag system, oscillations occur because the controller overcorrects before seeing the true system response. Therefore, high-lag systems require lower proportional gain and slower integral action."
+  },
+  {
+    "instruction": "Explain the purpose of the Proportional term in PID control.",
+    "response": "The Proportional term adjusts heater output in direct proportion to the difference between measured temperature and setpoint. Larger proportional gain increases responsiveness but can cause overshoot and oscillation. Proper tuning balances fast correction with stability."
+  },
+  {
+    "instruction": "Explain the purpose of the Integral term in PID control.",
+    "response": "The Integral term accumulates temperature error over time. Its primary purpose is to eliminate steady-state offset, where the system stabilizes slightly above or below the setpoint. Excessive integral gain can cause slow oscillations or overshoot."
+  },
+  {
+    "instruction": "Explain the purpose of the Derivative term in PID control.",
+    "response": "The Derivative term responds to how quickly the temperature error is changing. It provides damping and reduces overshoot by counteracting rapid temperature changes. Too much derivative gain can introduce noise sensitivity."
+  },
+  {
+    "instruction": "The system overshoots the setpoint by several Kelvin. What should be adjusted?",
+    "response": "Overshoot usually indicates excessive proportional gain or insufficient derivative damping. First, reduce the Proportional value slightly. Then increase Derivative gain to improve damping. If overshoot persists, reduce Integral gain to prevent accumulated error from driving excessive heater output."
+  },
+  {
+    "instruction": "The system cannot reach the setpoint temperature. What are possible causes?",
+    "response": "Possible causes include insufficient heater power, incorrect heater range selection, poor thermal coupling between heater and sample, or incorrect PID settings. Verify heater wiring, confirm maximum current limits, and ensure the heater range is adequate. Also check that the sensor is correctly placed and calibrated."
+  },
+  {
+    "instruction": "What is the two-sensor approach and why is it useful?",
+    "response": "The two-sensor approach uses one sensor for control and another for monitoring. The control sensor is placed near the heater for fast feedback, while the monitoring sensor is placed at the sample location. This improves control stability while ensuring accurate sample temperature verification."
+  },
+  {
+    "instruction": "How should a diode sensor be wired to reduce measurement noise?",
+    "response": "Use shielded twisted-pair cables and follow recommended grounding practices. Avoid bundling sensor leads with heater or power cables. Keep cable runs short. Ensure correct polarity and use four-lead measurement when possible for higher accuracy."
+  },
+  {
+    "instruction": "Why is four-lead measurement preferred for resistive sensors?",
+    "response": "Four-lead measurement separates current-carrying leads from voltage measurement leads. This eliminates errors caused by lead resistance, improving measurement accuracy especially at low temperatures."
+  },
+  {
+    "instruction": "What is the purpose of heater range selection?",
+    "response": "Heater range limits the maximum power available to the heater output. Selecting the lowest range that can still reach the setpoint improves stability and prevents overshoot."
+  },
+  {
+    "instruction": "How does setpoint ramping improve system stability?",
+    "response": "Setpoint ramping gradually changes the target temperature instead of making abrupt step changes. This reduces large instantaneous error signals and minimizes overshoot in systems with significant thermal mass or lag."
+  },
+  {
+    "instruction": "What should be checked if temperature readings are unstable?",
+    "response": "Check sensor wiring, grounding, shielding, and thermal anchoring. Ensure the correct curve is selected. Verify that filtering is configured appropriately and that cables are not routed near high-current lines."
+  },
+  {
+    "instruction": "Describe the steps for configuring Closed Loop PID mode.",
+    "response": "Select the heater output, choose Closed Loop PID mode, define the control input sensor, set maximum current and heater resistance limits, configure the temperature setpoint, adjust PID parameters, select heater range, and verify stable operation."
+  },
+  {
+    "instruction": "What is Open Loop mode used for?",
+    "response": "Open Loop mode allows the user to manually set heater output without feedback control. It is useful for testing heater functionality or performing controlled warm-up without automatic regulation."
+  },
+  {
+    "instruction": "When should Autotune be used?",
+    "response": "Autotune should be used when PID parameters are unknown or after major system changes such as new heater placement or altered thermal mass. It provides a stable baseline for manual refinement."
+  },
+  {
+    "instruction": "Why might different PID parameters be required at different temperatures?",
+    "response": "Thermal conductivity, heater efficiency, and system non-linearity change across temperature ranges. Therefore, control dynamics differ and optimized PID parameters may vary between low and high temperature regions."
+  },
+  {
+    "instruction": "What is Zone Mode in temperature control?",
+    "response": "Zone Mode allows different PID parameters to be assigned to different temperature intervals. This improves stability and performance across wide operating ranges."
+  },
+  {
+    "instruction": "How should thermocouples be installed for accurate measurement?",
+    "response": "Connect thermocouple wires to correct polarity terminals, avoid ground loops, use proper shielding, and ensure internal room temperature compensation is enabled. If necessary, perform compensation calibration."
+  },
+  {
+    "instruction": "What is curve selection in input configuration?",
+    "response": "Curve selection determines how sensor voltage or resistance is converted to temperature. Selecting the correct curve ensures accurate readings."
+  },
+  {
+    "instruction": "Why is EMC compliance important for temperature measurements?",
+    "response": "Electromagnetic interference can introduce noise and distort measurements. Proper shielding, grounding, and cable management maintain measurement accuracy and compliance with EMC standards."
+  },
+  {
+    "instruction": "What precautions should be taken with instrument cabling?",
+    "response": "Use shielded cables, avoid long runs, do not tightly bundle different signal types together, and remove unused cables to reduce interference."
+  },
+  {
+    "instruction": "What is the function of the Warm Up Supply?",
+    "response": "Warm Up Supply applies a controlled percentage of heater power during startup to gradually raise temperature and prevent thermal shock."
+  },
+  {
+    "instruction": "What does Monitor Out provide?",
+    "response": "Monitor Out provides an analog voltage representing a selected measurement or control parameter, allowing external monitoring systems to track instrument performance."
+  },
+  {
+    "instruction": "How are alarms used in the Model 336?",
+    "response": "Alarms monitor temperature conditions and trigger visual indicators or relay outputs when thresholds are exceeded. They provide safety and fault detection capability."
+  },
+  {
+    "instruction": "What is alarm latching?",
+    "response": "Alarm latching keeps an alarm active after the triggering condition clears, requiring manual acknowledgment before reset."
+  },
+  {
+    "instruction": "What is Manual Output in PID configuration?",
+    "response": "Manual Output allows direct setting of heater power without automatic feedback control."
+  },
+  {
+    "instruction": "Why is heater resistance configuration important?",
+    "response": "Correct heater resistance configuration ensures accurate power calculations and protects the instrument from overcurrent conditions."
+  },
+  {
+    "instruction": "What is User Max Current?",
+    "response": "User Max Current limits the maximum allowable heater current below the hardware maximum, providing additional protection."
+  },
+  {
+    "instruction": "What is Power Up Enable?",
+    "response": "Power Up Enable determines whether heater outputs activate automatically when the instrument powers on."
+  },
+  {
+    "instruction": "Why is thermal anchoring of sensor leads necessary?",
+    "response": "Thermal anchoring reduces heat conduction along sensor wires, improving measurement accuracy and stability."
+  },
+  {
+    "instruction": "What is SoftCal™ used for?",
+    "response": "SoftCal™ provides calibration adjustment capability for supported sensors, improving measurement accuracy."
+  },
+  {
+    "instruction": "What is curve copying used for?",
+    "response": "Curve copying duplicates stored calibration data to another memory location for backup or modification."
+  },
+  {
+    "instruction": "What is the purpose of IEEE-488 interface?",
+    "response": "IEEE-488 allows remote communication and control of the instrument from external systems."
+  },
+  {
+    "instruction": "What is Remote/Local mode?",
+    "response": "Remote/Local determines whether the instrument is controlled from the front panel or via remote interface."
+  },
+  {
+    "instruction": "Why must firmware not be modified?",
+    "response": "Firmware modification voids warranty protections and may compromise instrument reliability or compliance."
+  },
+  {
+    "instruction": "What does calibration traceability to NIST imply?",
+    "response": "It means the instrument’s calibration at shipment is traceable to national measurement standards, ensuring reliability."
+  },
+  {
+    "instruction": "What is Bipolar Control?",
+    "response": "Bipolar Control allows operation in systems capable of both heating and cooling."
+  },
+  {
+    "instruction": "How can cable routing affect temperature measurement?",
+    "response": "Improper routing near high-current or RF sources introduces noise and measurement instability."
+  }
+]

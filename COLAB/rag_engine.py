@@ -186,7 +186,7 @@ def ask_rag(query: str):
 
     # Gemini Model Setup (with max_retries as requested)
     llm = ChatGoogleGenerativeAI(
-        model="gemini-1.5-flash", 
+        model="gemini-1.5-pro",
         temperature=TEMPERATURE,
         max_retries=5
     )
