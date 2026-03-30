@@ -628,7 +628,7 @@ os.environ.setdefault("GOOGLE_API_KEY", os.getenv("GOOGLE_API_KEY", ""))
 # ============================================================
 
 MD_SPLITTER = RecursiveCharacterTextSplitter(
-    chunk_size=600,
+    chunk_size=800,
     chunk_overlap=200,
     separators=["\n######", "\n####", "\n###", "\n##", "\n#", "\n\n", "\n", " "],
 )
