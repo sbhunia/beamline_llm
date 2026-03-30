@@ -581,326 +581,230 @@
 # #         print(f"  {r['content'][:100]}...")
 # #         print()
 
+"""
+rag_engine.py – Dual-index RAG backend (Markdown + PDF)
+
+Two separate FAISS indexes with different chunking strategies:
+  • MD index  – small chunks (chunk_size=300, overlap=150)
+  • PDF index – larger chunks (chunk_size=1000, overlap=300)
+"""
+
+from __future__ import annotations
+
 import os
-import subprocess
-import pandas as pd
-from typing import List, Dict, Tuple
+import hashlib
 from pathlib import Path
-from concurrent.futures import ThreadPoolExecutor, TimeoutError as _TOError, as_completed
+from typing import List, Tuple
 
-import streamlit as st
-
+from langchain_community.document_loaders import TextLoader, PyPDFLoader
+from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_ollama import ChatOllama
+from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.documents import Document
-from langchain_text_splitters import RecursiveCharacterTextSplitter
-from langchain_community.document_loaders import (
-    DirectoryLoader,
-    TextLoader,
-    PyPDFLoader,
+
+# ============================================================
+# CONFIG
+# ============================================================
+
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+MD_DIR = os.path.join(BASE_DIR, "md_files")
+PDF_DIR = os.path.join(BASE_DIR, "pdf_files")
+
+FAISS_MD = os.path.join(BASE_DIR, "faiss_index_md")
+FAISS_PDF = os.path.join(BASE_DIR, "faiss_index_pdf")
+
+EMB_MODEL = "sentence-transformers/all-mpnet-base-v2"
+
+TOP_K_MD = 6
+TOP_K_PDF = 6
+MAX_CONTEXT_CHUNKS = 10
+
+os.environ.setdefault("GOOGLE_API_KEY", os.getenv("GOOGLE_API_KEY", ""))
+
+# ============================================================
+# CHUNKING
+# ============================================================
+
+MD_SPLITTER = RecursiveCharacterTextSplitter(
+    chunk_size=300,
+    chunk_overlap=150,
+    separators=["\n######", "\n####", "\n###", "\n##", "\n#", "\n\n", "\n", " "],
 )
 
-# =====================================================
-# CONFIG
-# =====================================================
+PDF_SPLITTER = RecursiveCharacterTextSplitter(
+    chunk_size=1000,
+    chunk_overlap=300,
+    separators=["\n\n", "\n", ". ", " "],
+)
 
-OLLAMA_BASE = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
-TOP_K = 4
+# ============================================================
+# EMBEDDINGS
+# ============================================================
 
-DOCUMENTS_PATH = "/home/vallurs/research/data/md_files"
-EXTRA_PDF_PATH = "/home/vallurs/research/data/drive_docs"
+_embeddings = None
 
-RESULTS_FILE = "/home/vallurs/research/COLAB/results.xlsx"
+def _get_embeddings() -> HuggingFaceEmbeddings:
+    global _embeddings
+    if _embeddings is None:
+        _embeddings = HuggingFaceEmbeddings(
+            model_name=EMB_MODEL,
+            model_kwargs={"device": "cpu"},
+            encode_kwargs={"batch_size": 32},
+        )
+    return _embeddings
 
-FAISS_CONFIGS = [
-    ("/home/vallurs/research/COLAB/faiss_cs50_ov10", 50, 10),
-    ("/home/vallurs/research/COLAB/faiss_cs100_ov50", 100, 50),
-    ("/home/vallurs/research/COLAB/faiss_cs200_ov100", 200, 100),
-    ("/home/vallurs/research/COLAB/faiss_cs250_ov50", 250, 50),
-    ("/home/vallurs/research/COLAB/faiss_cs300_ov150", 300, 150),
-    ("/home/vallurs/research/COLAB/faiss_cs500_ov100", 500, 100),
-    ("/home/vallurs/research/COLAB/faiss_cs500_ov250", 500, 250),
-    ("/home/vallurs/research/COLAB/faiss_cs800_ov200", 800, 200),
-    ("/home/vallurs/research/COLAB/faiss_cs1000_ov500", 1000, 500),
-    ("/home/vallurs/research/COLAB/faiss_cs2000_ov800", 2000, 800),
-]
+# ============================================================
+# LOADERS
+# ============================================================
 
-EMBEDDING_MODEL = "sentence-transformers/all-mpnet-base-v2"
+def _load_md_docs() -> List[Document]:
+    documents = []
+    for fp in Path(MD_DIR).rglob("*.md"):
+        loader = TextLoader(str(fp), encoding="utf-8")
+        docs = loader.load()
+        for d in docs:
+            d.metadata["source"] = fp.name
+            d.metadata["doc_type"] = "markdown"
+        documents.extend(docs)
+    return documents
 
-AVAILABLE_MODELS = [
-    "phi3:mini",
-    "llama2:latest",
-    "deepseek-r1:1.5b",
-    "gemma:2b",
-    "deepseek-coder:6.7b",
-    "codellama:7b-instruct",
-    "mistral:instruct",
-    "mistral:latest",
-]
 
-# =====================================================
-# UTILITIES
-# =====================================================
+def _load_pdf_docs() -> List[Document]:
+    documents = []
+    for fp in Path(PDF_DIR).rglob("*.pdf"):
+        loader = PyPDFLoader(str(fp))
+        docs = loader.load()
+        for d in docs:
+            d.metadata["source"] = fp.name
+            d.metadata["doc_type"] = "pdf"
+        documents.extend(docs)
+    return documents
 
-def append_to_excel(model: str, question: str, answer: str):
-    new_row = pd.DataFrame(
-        [{"Model": model, "Question": question, "Answer": answer}]
-    )
+# ============================================================
+# BUILD / LOAD INDEX
+# ============================================================
 
-    if Path(RESULTS_FILE).exists():
-        df_existing = pd.read_excel(RESULTS_FILE)
-        df_combined = pd.concat([df_existing, new_row], ignore_index=True)
-    else:
-        df_combined = new_row
+def _build_or_load(index_path, loader_fn, splitter):
+    embeddings = _get_embeddings()
 
-    df_combined.to_excel(RESULTS_FILE, index=False)
-
-def stop_other_ollama_models(selected_model: str):
-    try:
-        result = subprocess.run(
-            ["ollama", "ps"],
-            capture_output=True,
-            text=True,
-            check=True,
+    if os.path.exists(os.path.join(index_path, "index.faiss")):
+        return FAISS.load_local(
+            index_path, embeddings, allow_dangerous_deserialization=True
         )
 
-        lines = result.stdout.strip().split("\n")
+    docs = loader_fn()
+    chunks = splitter.split_documents(docs)
 
-        for line in lines[1:]:
-            parts = line.split()
-            if not parts:
-                continue
-            model_name = parts[0]
-            if model_name != selected_model:
-                subprocess.run(["ollama", "stop", model_name])
+    store = FAISS.from_documents(chunks, embeddings)
+    store.save_local(index_path)
+    return store
 
-    except Exception as e:
-        print(f"Warning stopping models: {e}")
 
-# =====================================================
-# CACHED INITIALIZERS
-# =====================================================
+_store_md = None
+_store_pdf = None
+_loaded = False
 
-@st.cache_resource
-def get_embeddings():
-    return HuggingFaceEmbeddings(model_name=EMBEDDING_MODEL)
 
-@st.cache_resource
-def load_or_create_vectorstores():
+def _ensure_stores():
+    global _store_md, _store_pdf, _loaded
+    if _loaded:
+        return
 
-    embeddings = get_embeddings()
-    stores = []
-    raw_docs = None
+    _store_md = _build_or_load(FAISS_MD, _load_md_docs, MD_SPLITTER)
+    _store_pdf = _build_or_load(FAISS_PDF, _load_pdf_docs, PDF_SPLITTER)
 
-    for path, chunk_size, overlap in FAISS_CONFIGS:
+    _loaded = True
 
-        index_path = Path(path)
-        index_file = index_path / "index.faiss"
-        metadata_file = index_path / "index.pkl"
-
-        if index_file.exists() and metadata_file.exists():
-            store = FAISS.load_local(
-                path,
-                embeddings,
-                allow_dangerous_deserialization=True,
-            )
-        else:
-            if raw_docs is None:
-                raw_docs = load_documents()
-
-            splitter = RecursiveCharacterTextSplitter(
-                chunk_size=chunk_size,
-                chunk_overlap=overlap,
-            )
-
-            split_docs = splitter.split_documents(raw_docs)
-
-            os.makedirs(path, exist_ok=True)
-            store = FAISS.from_documents(split_docs, embeddings)
-            store.save_local(path)
-
-        stores.append(store)
-
-    return stores
-
-# =====================================================
-# DOCUMENT LOADING
-# =====================================================
-
-def load_documents() -> List[Document]:
-
-    docs = []
-
-    if Path(DOCUMENTS_PATH).exists():
-        md_loader = DirectoryLoader(
-            DOCUMENTS_PATH,
-            glob="**/*.md",
-            loader_cls=TextLoader,
-        )
-        docs.extend(md_loader.load())
-
-    if Path(DOCUMENTS_PATH).exists():
-        pdf_files_main = list(Path(DOCUMENTS_PATH).rglob("*.pdf"))
-        for pdf in pdf_files_main:
-            loader = PyPDFLoader(str(pdf))
-            docs.extend(loader.load())
-
-    if Path(EXTRA_PDF_PATH).exists():
-
-        pdf_files_extra = list(Path(EXTRA_PDF_PATH).rglob("*.pdf"))
-        for pdf in pdf_files_extra:
-            loader = PyPDFLoader(str(pdf))
-            docs.extend(loader.load())
-
-        csv_files = list(Path(EXTRA_PDF_PATH).rglob("*.csv"))
-        for csv_file in csv_files:
-            df = pd.read_csv(csv_file)
-            for _, row in df.iterrows():
-                row_text = "\n".join(
-                    [f"{col}: {row[col]}" for col in df.columns]
-                )
-                docs.append(
-                    Document(
-                        page_content=row_text,
-                        metadata={"source": str(csv_file)},
-                    )
-                )
-
-    return docs
-
-# =====================================================
+# ============================================================
 # RETRIEVAL
-# =====================================================
+# ============================================================
+
+def _hash(text):
+    return hashlib.md5(text.encode()).hexdigest()
+
 
 def retrieve(query: str):
+    _ensure_stores()
 
-    stores = load_or_create_vectorstores()
-    all_results = []
+    results = []
 
-    for store in stores:
-        results = store.similarity_search_with_score(query, k=TOP_K)
-        all_results.extend(results)
+    if _store_md:
+        results += _store_md.similarity_search_with_score(query, k=TOP_K_MD)
 
-    unique: Dict[str, Tuple[Document, float]] = {}
+    if _store_pdf:
+        results += _store_pdf.similarity_search_with_score(query, k=TOP_K_PDF)
 
-    for doc, score in all_results:
-        if doc.page_content not in unique:
-            unique[doc.page_content] = (doc, score)
+    seen = {}
+    for doc, score in results:
+        h = _hash(doc.page_content)
+        if h not in seen or score < seen[h][1]:
+            seen[h] = (doc, score)
 
-    return list(unique.values())
+    ranked = sorted(seen.values(), key=lambda x: x[1])
+    return ranked[:MAX_CONTEXT_CHUNKS]
 
-# =====================================================
+# ============================================================
 # PROMPT
-# =====================================================
+# ============================================================
 
-BASE_PROMPT = """
-        You are a technical assistant for a synchrotron beamline control system.
+SYSTEM_PROMPT = """
+You are a technical assistant for a synchrotron beamline system.
 
-        Use ONLY the provided context.
+Use ONLY the provided context.
 
-        RULES:
+- Preserve exact step order
+- Do not hallucinate
+- Reproduce full tables
+- If nothing found → say "Not found in the provided documents."
+"""
 
-        Provide a direct answer to the question.
+# ============================================================
+# MAIN RAG FUNCTION
+# ============================================================
 
-        Do not include information or tables that are unrelated to the specific question asked.
+def ask_rag(query: str):
+    results = retrieve(query)
 
-        If the context contains direct instructions → list only what is available.
+    if not results:
+        return "Not found in the provided documents."
 
-        For multiple steps → list all steps clearly AND preserve the EXACT order they appear.
+    context = "\n\n---\n\n".join(
+        f"[Source: {doc.metadata.get('source')} | Type: {doc.metadata.get('doc_type')}]\n{doc.page_content}"
+        for doc, _ in results
+    )
 
-        If the context contains related links but no steps → explain available info and point to links.
+    llm = ChatGoogleGenerativeAI(
+        model="gemini-2.5-flash",
+        temperature=0.3,
+    )
 
-        If a table contains the specific answer requested → reproduce the full table.
-
-        IMPORTANT:
-
-        Do NOT reorder or reinterpret steps.
-
-        If nothing relevant is present at all, say: Not found in the provided documents.
-
-        Do NOT invent steps or procedures.
-        """
-
-def build_prompt(context_docs: List[Document], question: str):
-
-    context = "\n\n".join(
+    response = llm.invoke(
         [
-            f"Source: {doc.metadata.get('source')}\n{doc.page_content}"
-            for doc in context_docs
+            SystemMessage(content=SYSTEM_PROMPT),
+            HumanMessage(content=f"Context:\n{context}\n\nQuestion:\n{query}"),
         ]
     )
 
-    return f"""
-{BASE_PROMPT}
+    return response.content
 
-CONTEXT:
-{context}
+# ============================================================
+# REBUILD
+# ============================================================
 
-QUESTION:
-{question}
-"""
+def rebuild_indexes():
+    import shutil
 
-# =====================================================
-# STREAMLIT APP
-# =====================================================
+    for p in [FAISS_MD, FAISS_PDF]:
+        if os.path.exists(p):
+            shutil.rmtree(p)
 
-st.set_page_config(
-    page_title="Beamline Documentation Assistant",
-    page_icon="📄",
-    layout="wide",
-)
+    global _loaded
+    _loaded = False
+    _ensure_stores()
 
-st.markdown("## Beamline Documentation Assistant")
 
-if "messages" not in st.session_state:
-    st.session_state.messages = []
-
-user_query = st.chat_input("Ask your question...")
-
-if user_query:
-
-    st.session_state.messages.append({"role": "user", "content": user_query})
-
-    with st.chat_message("user"):
-        st.markdown(user_query)
-
-    results = retrieve(user_query)
-    context_docs = [doc for doc, _ in results]
-    prompt = build_prompt(context_docs, user_query)
-
-    with st.chat_message("assistant"):
-
-        for model_name in AVAILABLE_MODELS:
-
-            st.markdown(f"### {model_name}")
-
-            stop_other_ollama_models(model_name)
-
-            llm = ChatOllama(
-                model=model_name,
-                base_url=OLLAMA_BASE,
-                temperature=0,
-            )
-
-            response = llm.invoke(prompt)
-            answer = response.content
-
-            st.markdown(answer)
-
-            append_to_excel(model_name, user_query, answer)
-
-            with st.expander(f"🔎 References ({model_name})"):
-                for i, (doc, score) in enumerate(results, 1):
-                    st.markdown(
-                        f"""
-**[{i}] Source:** `{doc.metadata.get('source','unknown')}`  
-**Score:** `{float(score):.4f}`  
-
-{doc.page_content[:500]}
-"""
-                    )
-
-    st.session_state.messages.append(
-        {"role": "assistant", "content": "Multi-model response generated."}
-    )
+if __name__ == "__main__":
+    rebuild_indexes()
+    print(ask_rag("How do I change the energy?"))
