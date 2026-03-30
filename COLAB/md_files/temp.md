@@ -82,10 +82,10 @@ If ice did not melt:
 * Step 2: `FOURC > te 240`  
 * Step 3: Ensure all temperatures > 80K  
 * Step 4: Open N2 valve and close He valve  
-
+* Step 5: `FOURC > te 110`
 ![N2-open](https://github.com/suchismitasarker/CHESS-ID4B-QM2/blob/main/pictures/N2%20open2.png?raw=true)
 
-* Step 5: `FOURC > te 110`
+
 
 ---
 
