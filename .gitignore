@@ -11,10 +11,6 @@ __pycache__/
 *.bin
 *.safetensors
 
-# FAISS
-*.faiss
-*.pkl
-
 # Checkpoints
 checkpoint-*/
 
@@ -30,3 +26,10 @@ data/
 Distillation_claude/
 text-agent-lora/
 codellama-rawtext-qlora/
+
+!faiss_index_md/
+!faiss_index_md/*
+!faiss_index_pdf/
+!faiss_index_pdf/*
+
+faiss_cs*/
