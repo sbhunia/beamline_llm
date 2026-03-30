@@ -232,20 +232,15 @@
 #         ]
 #     }
 
-""" CLAUDEEEEE MD FILES + PDFS
-rag_engine.py – Dual-index RAG backend (Markdown + PDF)
+"""
+textgen_agent.py – Dual-index RAG backend for LOCAL Ollama models
 
-Two separate FAISS indexes with different chunking strategies:
-  • MD index  – small chunks (chunk_size=300, overlap=150)
-               Markdown files are short, command-heavy docs. Small chunks
-               keep individual commands/steps isolated for precise retrieval.
-  • PDF index – larger chunks (chunk_size=1000, overlap=300)
-               PDFs are dense technical manuals (up to 317 pages). Larger
-               chunks preserve the surrounding context needed to understand
-               procedures, tables, and specifications.
+IDENTICAL retrieval pipeline to the Gemini rag_engine.py:
+  • MD index  – chunk_size=300, overlap=150 (small chunks for precise
+               FAQ / command lookups — matches working Gemini config)
+  • PDF index – chunk_size=1000, overlap=300 (larger chunks for manuals)
 
-Both indexes are queried in parallel; results are merged and deduplicated
-by content before being sent to Gemini.
+Only difference from rag_engine.py: uses Ollama instead of Gemini.
 """
 
 from __future__ import annotations
@@ -253,14 +248,13 @@ from __future__ import annotations
 import os
 import hashlib
 from pathlib import Path
-from typing import List, Tuple
+from typing import List, Tuple, Dict, Any
 
-from langchain_community.document_loaders import TextLoader
-from langchain_community.document_loaders import PyPDFLoader
+from langchain_community.document_loaders import TextLoader, PyPDFLoader
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_community.vectorstores import FAISS
 from langchain_huggingface import HuggingFaceEmbeddings
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_ollama import ChatOllama
 from langchain_core.messages import SystemMessage, HumanMessage
 from langchain_core.documents import Document
 
@@ -268,33 +262,40 @@ from langchain_core.documents import Document
 # CONFIGURATION
 # =====================================================================
 
-BASE_DIR   = os.path.dirname(os.path.abspath(__file__))
-MD_DIR     = os.path.join(BASE_DIR, "md_files")
-PDF_DIR    = os.path.join(BASE_DIR, "pdf_files")
+BASE_DIR  = os.path.dirname(os.path.abspath(__file__))
+MD_DIR    = os.path.join(BASE_DIR, "md_files")
+PDF_DIR   = os.path.join(BASE_DIR, "pdf_files")
 
-FAISS_MD   = os.path.join(BASE_DIR, "faiss_index_md")
-FAISS_PDF  = os.path.join(BASE_DIR, "faiss_index_pdf")
+FAISS_MD  = os.path.join(BASE_DIR, "faiss_index_md")
+FAISS_PDF = os.path.join(BASE_DIR, "faiss_index_pdf")
 
-EMB_MODEL  = "sentence-transformers/all-mpnet-base-v2"
+EMB_MODEL = "sentence-transformers/all-mpnet-base-v2"
 
-# Retrieval depth per index
-TOP_K_MD   = 6
-TOP_K_PDF  = 6
-
-# Final merged results sent to LLM (after dedup + re-rank by score)
+TOP_K_MD  = 6
+TOP_K_PDF = 6
 MAX_CONTEXT_CHUNKS = 10
 
-# Gemini key – loaded from env / Streamlit secrets
-os.environ.setdefault("GOOGLE_API_KEY", os.getenv("GOOGLE_API_KEY", ""))
+OLLAMA_BASE = os.getenv("OLLAMA_BASE_URL", "http://127.0.0.1:11434")
+
+AVAILABLE_MODELS = [
+    "mistral:instruct",
+    "mistral:latest",
+    "phi3:mini",
+    "llama2:latest",
+    "deepseek-r1:1.5b",
+    "gemma:2b",
+    "deepseek-coder:6.7b",
+    "codellama:7b-instruct",
+]
 
 # =====================================================================
-# CHUNKING STRATEGIES
+# CHUNKING  –  MATCHES GEMINI rag_engine.py EXACTLY
 # =====================================================================
 
 MD_SPLITTER = RecursiveCharacterTextSplitter(
     chunk_size=300,
     chunk_overlap=150,
-    separators=["\n######", "\n####", "\n###", "\n##", "\n#", "\n\n", "\n", " "],
+    separators=["\n######", "\n#####", "\n####", "\n###", "\n##", "\n#", "\n\n", "\n", " "],
 )
 
 PDF_SPLITTER = RecursiveCharacterTextSplitter(
@@ -304,10 +305,11 @@ PDF_SPLITTER = RecursiveCharacterTextSplitter(
 )
 
 # =====================================================================
-# EMBEDDINGS (cached at module level)
+# EMBEDDINGS
 # =====================================================================
 
 _embeddings = None
+
 
 def _get_embeddings() -> HuggingFaceEmbeddings:
     global _embeddings
@@ -320,7 +322,7 @@ def _get_embeddings() -> HuggingFaceEmbeddings:
     return _embeddings
 
 # =====================================================================
-# DOCUMENT LOADERS
+# DOCUMENT LOADERS  –  SAME AS GEMINI VERSION
 # =====================================================================
 
 def _load_md_docs() -> List[Document]:
@@ -390,11 +392,11 @@ def _build_or_load(
 
     raw_docs = loader_fn()
     if not raw_docs:
-        print(f"[WARNING] No documents found for {label} – skipping index build")
+        print(f"[WARNING] No documents found for {label} -- skipping index build")
         return None
 
     chunks = splitter.split_documents(raw_docs)
-    print(f"[INFO] {label}: {len(raw_docs)} docs → {len(chunks)} chunks")
+    print(f"[INFO] {label}: {len(raw_docs)} docs -> {len(chunks)} chunks")
 
     store = FAISS.from_documents(chunks, embeddings)
     os.makedirs(index_path, exist_ok=True)
@@ -402,7 +404,7 @@ def _build_or_load(
     print(f"[INFO] {label} index saved to {index_path}")
     return store
 
-# Global stores – initialised lazily
+
 _store_md: FAISS | None  = None
 _store_pdf: FAISS | None = None
 _stores_loaded = False
@@ -431,21 +433,21 @@ def retrieve(query: str) -> List[Tuple[Document, float]]:
     all_results: List[Tuple[Document, float]] = []
 
     if _store_md is not None:
-        md_hits = _store_md.similarity_search_with_score(query, k=TOP_K_MD)
-        all_results.extend(md_hits)
-
+        all_results.extend(
+            _store_md.similarity_search_with_score(query, k=TOP_K_MD)
+        )
     if _store_pdf is not None:
-        pdf_hits = _store_pdf.similarity_search_with_score(query, k=TOP_K_PDF)
-        all_results.extend(pdf_hits)
+        all_results.extend(
+            _store_pdf.similarity_search_with_score(query, k=TOP_K_PDF)
+        )
 
-    # Deduplicate by content hash
+    # Deduplicate by content hash (keep best score)
     seen: dict[str, Tuple[Document, float]] = {}
     for doc, score in all_results:
         h = _content_hash(doc.page_content)
-        if h not in seen or score < seen[h][1]:   # lower score = closer match
+        if h not in seen or score < seen[h][1]:
             seen[h] = (doc, score)
 
-    # Sort by relevance (ascending distance) and cap
     ranked = sorted(seen.values(), key=lambda x: x[1])
     return ranked[:MAX_CONTEXT_CHUNKS]
 
@@ -461,11 +463,11 @@ Use ONLY the provided context to answer questions.
 RULES:
 - Provide a direct answer to the question.
 - Do not include information or tables that are unrelated to the specific question asked.
-- If the context contains direct instructions or steps → list all steps clearly
+- If the context contains direct instructions or steps -> list all steps clearly
   AND preserve the EXACT order they appear.
-- If the context contains related links or resources but no step-by-step instructions →
+- If the context contains related links or resources but no step-by-step instructions ->
   explain what information is available and point to the relevant links.
-- If a table is present in the context that answers the question → reproduce the
+- If a table is present in the context that answers the question -> reproduce the
   full table including all columns. Do not omit columns.
 - If the user's question contains conditions that conflict with the document
   (e.g., invalid temperature ranges or operating modes), explicitly point out the
@@ -485,13 +487,23 @@ At the end of your answer, list the source documents you referenced, like:
 # PUBLIC INTERFACE
 # =====================================================================
 
-def ask_rag(query: str) -> str:
-    """Run the full RAG pipeline: retrieve → build prompt → call Gemini."""
+def ask_rag(query: str, model_name: str = "mistral:instruct") -> Dict[str, Any]:
+    """
+    Full RAG pipeline: retrieve -> build prompt -> call Ollama LLM.
 
+    Returns dict with:
+      - answer:    str
+      - model:     str
+      - retrieved: list of {content, score, source, doc_type}
+    """
     results = retrieve(query)
 
     if not results:
-        return "Not found in the provided documents."
+        return {
+            "answer": "Not found in the provided documents.",
+            "model": model_name,
+            "retrieved": [],
+        }
 
     context = "\n\n---\n\n".join(
         f"[Source: {doc.metadata.get('source', 'unknown')} | "
@@ -499,35 +511,59 @@ def ask_rag(query: str) -> str:
         for doc, _ in results
     )
 
-    llm = ChatGoogleGenerativeAI(
-        model="gemini-2.5-flash",
-        temperature=0.3,
-        max_retries=5,
+    llm = ChatOllama(
+        model=model_name,
+        base_url=OLLAMA_BASE,
+        temperature=0.0,
     )
 
-    response = llm.invoke(
-        [
-            SystemMessage(content=SYSTEM_PROMPT),
-            HumanMessage(content=f"Context:\n{context}\n\nQuestion:\n{query}"),
-        ]
-    )
+    response = llm.invoke([
+        SystemMessage(content=SYSTEM_PROMPT),
+        HumanMessage(content=f"Context:\n{context}\n\nQuestion:\n{query}"),
+    ])
 
-    return response.content
-
+    return {
+        "answer": response.content,
+        "model": model_name,
+        "retrieved": [
+            {
+                "content": doc.page_content,
+                "score": float(score),
+                "source": doc.metadata.get("source", "unknown"),
+                "doc_type": doc.metadata.get("doc_type", "?"),
+            }
+            for doc, score in results
+        ],
+    }
 
 # =====================================================================
-# UTILITY: force re-index (call from terminal or a sidebar button)
+# OLLAMA HEALTH CHECK
+# =====================================================================
+
+def check_ollama() -> Tuple[bool, List[str]]:
+    """Check if Ollama is running and return list of pulled models."""
+    try:
+        import requests
+        resp = requests.get(f"{OLLAMA_BASE}/api/tags", timeout=3)
+        if resp.status_code == 200:
+            data = resp.json()
+            names = [m["name"] for m in data.get("models", [])]
+            return True, names
+        return False, []
+    except Exception:
+        return False, []
+
+# =====================================================================
+# REBUILD INDEXES
 # =====================================================================
 
 def rebuild_indexes():
     """Delete existing indexes and rebuild from source files."""
     import shutil
-
     for p in [FAISS_MD, FAISS_PDF]:
         if os.path.exists(p):
             shutil.rmtree(p)
             print(f"[INFO] Deleted {p}")
-
     global _stores_loaded
     _stores_loaded = False
     _ensure_stores()
@@ -535,8 +571,12 @@ def rebuild_indexes():
 
 
 if __name__ == "__main__":
-    # Quick sanity check from the command line
     rebuild_indexes()
-    answer = ask_rag("How do I change the energy?")
+    result = ask_rag("How to recover if the computer fail?", model_name="mistral:instruct")
     print("\n===== ANSWER =====")
-    print(answer)
+    print(result["answer"])
+    print("\n===== RETRIEVED =====")
+    for r in result["retrieved"]:
+        print(f"  [{r['doc_type']}] {r['source']} (score: {r['score']:.4f})")
+        print(f"  {r['content'][:100]}...")
+        print()

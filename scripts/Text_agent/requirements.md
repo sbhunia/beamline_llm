@@ -1,0 +1,9 @@
+streamlit>=1.30
+langchain>=0.3
+langchain-community>=0.3
+langchain-huggingface>=0.1
+langchain-ollama>=0.2
+faiss-cpu>=1.7
+sentence-transformers>=2.2
+pypdf>=4.0
+requests>=2.28

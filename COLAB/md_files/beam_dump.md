@@ -19,7 +19,6 @@
 
 ### If we are not using the mostab, follow the steps:
 
-
 * Step 1: check the current
 * Step 2: After it stabilized 
 * Step 3: Check the shutter 
