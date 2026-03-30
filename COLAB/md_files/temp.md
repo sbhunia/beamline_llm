@@ -10,7 +10,7 @@ The cryocooler is highly sensitive. To obtain an accurate temperature reading, p
 
 ---
 
-## 300K ---> 280K : temperature range
+## Change of temperature from 300K to 280K between nitrogen and helium
 
 * Step 1: Make sure N2 valve is open and helium (He) valve is closed  
 * Step 2: `FOURC > roomT`  
@@ -22,7 +22,7 @@ The cryocooler is highly sensitive. To obtain an accurate temperature reading, p
 
 ---
 
-## 200K ---> 270K : Temperature range
+## Change of temperature from 200K to 270K between nitrogen and helium
 
 * Step 1: Make sure N2 valve is open and helium (He) valve is closed  
 * Step 2: `FOURC > prepN2_high`  
@@ -33,7 +33,7 @@ The cryocooler is highly sensitive. To obtain an accurate temperature reading, p
 
 ---
 
-## 160K ---> 200K : Temperature range
+## Change of temperature from 160K to 200K between nitrogen and helium
 
 * Step 1: Make sure N2 valve is open and helium (He) valve is closed  
 * Step 2: `FOURC > prepN2_medium`  
@@ -44,7 +44,7 @@ The cryocooler is highly sensitive. To obtain an accurate temperature reading, p
 
 ---
 
-## 100K --> 150K : Temperature range
+## Change of temperature from 100K to 150K between nitrogen and helium
 
 * Step 1: Make sure N2 valve is open and helium (He) valve is closed  
 * Step 2: `FOURC > prepN2_low`  
@@ -55,7 +55,7 @@ The cryocooler is highly sensitive. To obtain an accurate temperature reading, p
 
 ---
 
-## Nitrogen to helium switch (110K --> 13K)
+## Change of temperature from 110K to 13K between nitrogen and helium
 
 * Step 1: `FOURC > prepN2_low`  
 * Step 2: `FOURC > te 260`
@@ -76,7 +76,7 @@ If ice did not melt:
 
 ---
 
-## 13K --> 100K (He to N2)
+## Change of temperature from 13K to 100K between nitrogen and helium (He and N2)
 
 * Step 1: `FOURC > prepN2_low`  
 * Step 2: `FOURC > te 240`  
@@ -89,7 +89,7 @@ If ice did not melt:
 
 ---
 
-## 300K --> 15K (Room → Base)
+## Change of temperature from 300K to 15K (Room → Base)
 
 * Step 1: `FOURC > prepN2_low`  
 * Step 2: Wait until A & C stabilize (87K, 85K)  
@@ -108,7 +108,7 @@ If ice did not melt:
 
 ---
 
-## 13K --> 300K (He → N2)
+## Change of temperature from 13K to 300K (He → N2)
 
 * Step 1: `FOURC > prepN2_low`  
 * Step 2: `FOURC > te 260`  
@@ -123,7 +123,7 @@ If ice did not melt:
 
 ---
 
-## 300K --> 500K
+## Change of temperature from 300K to 500K between nitrogen and helium
 
 * Step 1: Talk to beamline scientist  
 * Step 2: Ensure N2 open, He closed  
@@ -139,7 +139,7 @@ If ice did not melt:
 
 ---
 
-## 500K --> 300K
+## Change of temperature from 500K to 300K between nitrogen and helium
 
 * Step 1: Talk to beamline scientist  
 * Step 2: Ensure N2 open, He closed  
@@ -164,6 +164,7 @@ If ice did not melt:
 
 ## Problem: Ice formation
 
+## Steps to follow when there is Ice Formation in cryocooler
 ![icing](https://github.com/suchismitasarker/CHESS-ID4B-QM2/blob/main/pictures/icing_issue.png?raw=true)
 
 * Step 1: Check cryo-stream distance  
@@ -178,13 +179,14 @@ Commands:
 
 ## Problem: High temperature issues
 
+## Steps to follow when there is a high temperature issue in Cryocooler
 * Step 1: Check gas flow  
 * Step 2: Talk to staff scientist
 
 ---
 
 ## Problem: Controller accidentally closed
-
+## STEPS to follow when Controller has been accidentally closed
 * Step 1: Open terminal → `StripTool`  
 * Step 2: Connect to EPICS PVs  
 * Step 3: Add:
@@ -195,7 +197,7 @@ Commands:
 
 ---
 
-## Emergency procedure
+## Emergency procedure involved in temperature switch between Helium and Nitrogen
 
 * Step 1: Talk to beamline scientist  
 * Step 2: Switch N2 → He  
