@@ -2,9 +2,7 @@ from __future__ import annotations
 import streamlit as st
 from rag_engine import ask_rag, rebuild_indexes
 
-# ===============================
 # PAGE CONFIG
-# ===============================
 
 st.set_page_config(
     page_title="QM2 Assistant",
@@ -12,9 +10,7 @@ st.set_page_config(
     layout="wide",
 )
 
-# ===============================
-# GLOBAL CSS  (force light mode + UI styling)
-# ===============================
+ # GLOBAL CSS  
 
 st.markdown(
     """
@@ -154,9 +150,7 @@ section[data-testid="stSidebar"] {
     unsafe_allow_html=True,
 )
 
-# ===============================
 # TOP BAR
-# ===============================
 
 st.markdown(
     """
@@ -174,16 +168,12 @@ st.markdown(
     unsafe_allow_html=True,
 )
 
-# ===============================
 # SESSION STATE
-# ===============================
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# ===============================
 # SIDEBAR
-# ===============================
 
 with st.sidebar:
     if st.button("🗑️ New chat"):
@@ -206,9 +196,7 @@ with st.sidebar:
             st.session_state.messages.append(msg)
             st.rerun()
 
-# ===============================
 # REPLAY CHAT
-# ===============================
 
 for m in st.session_state.messages:
     with st.chat_message(m["role"]):
@@ -216,9 +204,7 @@ for m in st.session_state.messages:
             st.markdown("<span class='agent-badge'> RAG AGENT</span>", unsafe_allow_html=True)
         st.markdown(m["content"], unsafe_allow_html=True)
 
-# ===============================
 # CHAT INPUT
-# ===============================
 
 user_query = st.chat_input("Type your question here…")
 
